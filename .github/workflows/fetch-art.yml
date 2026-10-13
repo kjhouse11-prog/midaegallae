@@ -11,11 +11,8 @@ jobs:
       - run: |
           mkdir -p art-src
           UA="midaegallae-build/0.5 (https://github.com/kjhouse11-prog/midaegallae)"
-          get() { curl -fsSL -A "$UA" "https://commons.wikimedia.org/wiki/Special:FilePath/$2?width=1800" -o "art-src/$1" && ls -la "art-src/$1"; }
-          get botticelli-venus.jpg "Sandro_Botticelli_-_La_nascita_di_Venere_-_Google_Art_Project_-_edited.jpg"
-          get cabanel-venus.jpg "Alexandre_Cabanel_-_The_Birth_of_Venus_-_Google_Art_Project_2.jpg"
-          get botticelli-primavera.jpg "Botticelli-primavera.jpg"
-          get bouguereau-venus.jpg "William-Adolphe_Bouguereau_(1825-1905)_-_The_Birth_of_Venus_(1879).jpg"
+          get() { curl -fsSL -A "$UA" "https://commons.wikimedia.org/wiki/Special:FilePath/$2?width=${3:-1800}" -o "art-src/$1" && ls -la "art-src/$1"; }
+          get botticelli-venus-4000.jpg "Sandro_Botticelli_-_La_nascita_di_Venere_-_Google_Art_Project_-_edited.jpg" 4000
       - run: |
           git config user.name "github-actions[bot]"; git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           git add art-src && git commit -m "명화 원본 받기 (퍼블릭 도메인, 위키미디어 공용)" && git push
