@@ -12,13 +12,15 @@ MAJORS = {"시각디자인", "산업디자인", "공예", "패션디자인", "�
 TTYPES = {"수시실기다단계", "수시실기일괄", "수시학종", "정시실기", "정시비실기"}
 REGIONS = {"서울", "경기", "인천", "강원", "대전", "세종", "충북", "충남", "광주", "전북", "전남", "대구", "경북", "부산", "울산", "경남", "제주"}
 
+ALIAS = {"서울과기대": "서울과학기술대"}
+
 def num(v):
     if v is None or v == "": return None
     try: return float(v)
     except (TypeError, ValueError):
         m = re.search(r"\d+(\.\d+)?", str(v)); return float(m.group()) if m else None
 
-def key(r): return (r["univ"], r.get("campus") or "", re.sub(r"\s", "", r["dept"]), r["round"], r.get("gun") or "", re.sub(r"\s", "", r.get("track") or ""))
+def key(r): return (r["univ"], r.get("campus") or "", re.sub(r"\s", "", r["dept"]), r["round"], r.get("gun") or "", re.sub(r"\s", "", r.get("track") or ""), re.sub(r"\s", "", r.get("exam") or ""))
 
 def main():
     app = json.load(open(APP, encoding="utf-8"))
@@ -27,6 +29,7 @@ def main():
     seen = {key(p) for p in base}
     url2key, out, skipped = {}, [], []
     for r in json.load(open(EXTRA, encoding="utf-8")):
+        r["univ"] = ALIAS.get(r["univ"].strip(), r["univ"].strip())
         if r.get("major") not in MAJORS: r["major"] = "기타"
         if r.get("ttype") not in TTYPES or r.get("region") not in REGIONS or r.get("round") not in ("수시", "정시"):
             skipped.append((r.get("univ"), r.get("dept"), "형식")); continue
