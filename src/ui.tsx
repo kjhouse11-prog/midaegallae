@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { AXES } from "./lib/data";
 
 export function Radar({ scores, size = 220 }: { scores: Record<string, number | null>; size?: number }) {
@@ -34,3 +35,54 @@ const icons: Record<string, string> = {
   me: "M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8zM4 21c1.5-4 4.5-6 8-6s6.5 2 8 6",
 };
 export function Icon({ name }: { name: string }) { return <svg viewBox="0 0 24 24"><path d={icons[name]} /></svg>; }
+
+// 숫자 입력칸 — 입력 중에는 칸을 비우거나 자유롭게 고칠 수 있고, 칸을 벗어날 때 범위(min~max)로 맞춤.
+// (type="number"에 값을 바로 넣으면 지운 칸이 다시 1로 채워져 "12"처럼 입력되는 문제가 있었음)
+export function NumInput({ id, value, min, max, allowEmpty, placeholder, onCommit }: {
+  id?: string; value: number | null; min: number; max: number; allowEmpty?: boolean; placeholder?: string;
+  onCommit: (v: number | null) => void;
+}) {
+  const [text, setText] = useState(value === null ? "" : String(value));
+  const [focus, setFocus] = useState(false);
+  useEffect(() => { if (!focus) setText(value === null ? "" : String(value)); }, [value, focus]);
+  const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n * 100) / 100));
+  return <input id={id} type="text" inputMode="decimal" autoComplete="off" placeholder={placeholder} value={text}
+    onFocus={(e) => { setFocus(true); e.currentTarget.select(); }}
+    onChange={(e) => {
+      const t = e.target.value.replace(",", ".");
+      if (!/^\d*\.?\d*$/.test(t)) return;
+      setText(t);
+      const n = parseFloat(t);
+      if (t === "") { if (allowEmpty) onCommit(null); }
+      else if (!isNaN(n) && n >= min && n <= max) onCommit(n);
+    }}
+    onBlur={() => {
+      setFocus(false);
+      const n = parseFloat(text);
+      if (text === "" || isNaN(n)) { if (allowEmpty) { onCommit(null); setText(""); } else setText(value === null ? "" : String(value)); return; }
+      const c = clamp(n); onCommit(c); setText(String(c));
+    }} />;
+}
+
+// 홈 화면 설치 안내 — 안드로이드는 [설치] 버튼 한 번, 아이폰은 사파리 공유 메뉴 안내. 이미 설치된 앱으로 열면 숨김.
+export function InstallBar() {
+  const standalone = typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true);
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const [bip, setBip] = useState<any>((window as any).__bip ?? null);
+  const [hidden, setHidden] = useState(() => { try { return sessionStorage.getItem("install-bar-off") === "1"; } catch { return false; } });
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    const on = () => setBip((window as any).__bip ?? null);
+    const ok = () => { setDone(true); (window as any).__bip = null; setBip(null); };
+    window.addEventListener("bip-ready", on); window.addEventListener("appinstalled", ok);
+    return () => { window.removeEventListener("bip-ready", on); window.removeEventListener("appinstalled", ok); };
+  }, []);
+  if (standalone || hidden || done || (!bip && !ios)) return null;
+  const close = () => { setHidden(true); try { sessionStorage.setItem("install-bar-off", "1"); } catch { /* 무시 */ } };
+  return <div className="install-bar" role="region" aria-label="앱 설치">
+    <img src="./icon-192.png" alt="" width={40} height={40} />
+    <div className="t"><b>미대갈래 앱 설치</b><span>{bip ? "홈 화면에 아이콘을 만들어 바로 열어요" : "사파리 아래 공유(□↑) → '홈 화면에 추가'"}</span></div>
+    {bip && <button className="btn" onClick={async () => { bip.prompt(); const r = await bip.userChoice; if (r?.outcome === "accepted") setDone(true); (window as any).__bip = null; setBip(null); }}>설치</button>}
+    <button className="x" aria-label="닫기" onClick={close}>×</button>
+  </div>;
+}

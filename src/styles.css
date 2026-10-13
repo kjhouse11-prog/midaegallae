@@ -99,7 +99,7 @@ label.f input:focus,label.f select:focus{outline:2px solid var(--accent);outline
 .x-scroll{overflow-x:auto}
 
 /* ---- 스프린트 3 추가 ---- */
-.auth{min-height:100vh;display:flex;flex-direction:column;justify-content:center;gap:18px;padding:32px 20px}
+.auth{min-height:100vh;display:flex;flex-direction:column;justify-content:flex-start;gap:18px;padding:0 20px 32px}
 .auth .logo{font-family:var(--f-display);font-weight:800;font-size:30px;line-height:1.2}
 .auth .chips{display:flex;gap:6px}.auth .chips i{width:14px;height:14px;border-radius:3px;display:block}
 .err{color:var(--reach);font-size:13px}
@@ -126,3 +126,21 @@ label.f input:focus,label.f select:focus{outline:2px solid var(--accent);outline
 .plist{display:flex;flex-direction:column;gap:8px}
 .pick{display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer}
 .pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+
+/* 홈 화면 설치 안내 */
+.install-bar{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff;border-bottom:1px solid var(--line)}
+.install-bar img{border-radius:10px;flex:none}
+.install-bar .t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.35}
+.install-bar .t b{font-size:14px}
+.install-bar .t span{font-size:12px;color:var(--muted,#6b7080)}
+.install-bar .btn{padding:8px 16px;min-height:0;font-size:14px;flex:none;width:auto}
+.install-bar .x{background:none;border:0;font-size:22px;line-height:1;color:#9aa0ad;padding:4px 6px;cursor:pointer;flex:none}
+
+/* 로그인 화면 명화 배경 — 보티첼리 〈비너스의 탄생〉(퍼블릭 도메인) */
+.auth .hero{position:relative;margin:0 -20px 4px;height:min(58vh,520px);min-height:340px;background:#1B2F9E url(./assets/venus-hero.jpg) 46% 0%/cover no-repeat;display:flex;align-items:flex-end;overflow:hidden}
+.auth .hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(16,26,80,.05) 0%,rgba(16,26,80,0) 35%,rgba(16,26,80,.55) 72%,rgba(16,26,80,.86) 100%)}
+.auth .hero-txt{position:relative;color:#fff;padding:0 22px 30px}
+.auth .hero .kicker{font-size:11px;letter-spacing:.16em;opacity:.85}
+.auth .hero .logo{font-size:44px;line-height:1.1;margin-top:8px;letter-spacing:-.02em;text-shadow:0 2px 16px rgba(0,0,0,.25)}
+.auth .hero p{margin:10px 0 0;font-size:14.5px;line-height:1.5;opacity:.92}
+.auth .hero .credit{position:absolute;right:10px;bottom:8px;font-size:10px;color:rgba(255,255,255,.7)}

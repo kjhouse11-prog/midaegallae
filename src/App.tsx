@@ -5,7 +5,7 @@ import type { Artwork, Award, AuthUser, Profile } from "./lib/store";
 import { NOW, academyMonths, buildPlan, demoAnalysis, examDate, gpaSystem, priorities, toStudent, weekTasks, workAvg, type Ctx } from "./lib/calc";
 import { judge, practicalIndex, recommend, setUniverse, toGpa9, VERDICT_STYLE, type Judgement, type Program, type Verdict } from "./lib/engine";
 import DATA from "./lib/programs.json";
-import { Icon, PartBar, Radar } from "./ui";
+import { Icon, InstallBar, NumInput, PartBar, Radar } from "./ui";
 import { APP_VERSION } from "./config";
 
 const PROGRAMS = DATA.programs as Program[];
@@ -21,7 +21,7 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   useEffect(() => { S.currentUser().then((u) => { setUser(u); setBooting(false); }); return S.onAuthChange(setUser); }, []);
   if (booting) return <div className="app"><div className="loading">불러오는 중…</div></div>;
-  return <div className="app">{S.isDemo && <div className="demo-bar">데모 모드 · 데이터는 이 기기에만 저장됩니다</div>}{user ? <Main user={user} onSignOut={() => S.signOut().then(() => setUser(null))} /> : <Auth onDone={setUser} />}</div>;
+  return <div className="app">{S.isDemo && <div className="demo-bar">데모 모드 · 데이터는 이 기기에만 저장됩니다</div>}<InstallBar />{user ? <Main user={user} onSignOut={() => S.signOut().then(() => setUser(null))} /> : <Auth onDone={setUser} />}</div>;
 }
 
 // ---------------- 로그인 / 회원가입 ----------------
@@ -42,8 +42,10 @@ function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
   async function reset() { setErr(""); setMsg(""); if (!email) { setErr("이메일을 먼저 입력해 주세요."); return; } try { await S.resetPassword(email.trim()); setMsg("비밀번호 재설정 메일을 보냈어요."); } catch (x) { setErr((x as Error).message); } }
   return (
     <form className="auth" onSubmit={submit}>
-      <div className="chips">{["#2747D8", "#F2B631", "#E0533D", "#2A9D8F"].map((c) => <i key={c} style={{ background: c }} />)}</div>
-      <div><div className="logo">미대갈래</div><p className="muted small" style={{ margin: "6px 0 0" }}>38년 미대 입시 데이터로 찾는 나의 미대 입시 길</p></div>
+      <div className="hero" role="img" aria-label="산드로 보티첼리, 비너스의 탄생 부분">
+        <div className="hero-txt"><span className="kicker">MONTHLY MIDAE IPSI · SINCE 1988</span><div className="logo">미대갈래</div><p>38년 미대 입시 데이터로 찾는<br />나의 미대 입시 길</p></div>
+        <span className="credit">보티첼리 〈비너스의 탄생〉 1485년경 · 우피치 미술관</span>
+      </div>
       <div className="seg" role="group"><button type="button" aria-pressed={mode === "in"} onClick={() => setMode("in")}>로그인</button><button type="button" aria-pressed={mode === "up"} onClick={() => setMode("up")}>회원가입</button></div>
       <label className="f">이메일<input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
       <label className="f">비밀번호 {mode === "up" && <span className="tiny">(6자 이상)</span>}<input id="pw" type="password" autoComplete={mode === "up" ? "new-password" : "current-password"} required minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} /></label>
@@ -299,8 +301,8 @@ function Me({ user, profile, isNew, awards, reload, onSignOut }: { user: AuthUse
         <label className="f">희망 전공<select id="pf-major" value={p.major} onChange={(e) => set("major", e.target.value)}>{MAJORS.map((m) => <option key={m}>{m}</option>)}</select></label>
       </div>
       <div className="grid2">
-        <label className="f"><span>내신 등급 <span className="tiny">({sys}등급제)</span></span><input id="pf-gpa" type="number" step="0.1" min={1} max={sys} value={p.gpa} onChange={(e) => set("gpa", parseFloat(e.target.value) || 1)} /></label>
-        <label className="f"><span>모의고사 평균 백분위</span><input id="pf-mock" type="number" min={0} max={100} value={p.mockKnown ? p.mock : ""} placeholder="모르면 비워두기" onChange={(e) => { const v = e.target.value; set("mockKnown", v !== ""); set("mock", parseFloat(v) || 0); }} /></label>
+        <label className="f"><span>내신 등급 <span className="tiny">({sys}등급제)</span></span><NumInput id="pf-gpa" min={1} max={sys} value={p.gpa} onCommit={(v) => set("gpa", v ?? 1)} placeholder={`1 ~ ${sys}`} /></label>
+        <label className="f"><span>모의고사 평균 백분위</span><NumInput id="pf-mock" min={0} max={100} allowEmpty value={p.mockKnown ? p.mock : null} placeholder="모르면 비워두기" onCommit={(v) => { set("mockKnown", v !== null); set("mock", v ?? 0); }} /></label>
       </div>
       <label className="f">미술학원 시작 (연-월)<input id="pf-academy" type="month" value={p.academyStart} onChange={(e) => set("academyStart", e.target.value)} /></label>
       <span className="tiny">고1·고2는 5등급제, 고3·N수는 9등급제예요 (2028 대입개편). 대학 입결(9등급제)과 비교할 때는 같은 석차 비율로 환산해요. 학원 {academyMonths(p)}개월. 모의고사를 비우면 내신 수준으로 추정해요.</span>
