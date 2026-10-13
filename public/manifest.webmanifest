@@ -1,0 +1,18 @@
+{
+  "name": "미대갈래 — 내 실력으로 갈 수 있는 미대 찾기",
+  "short_name": "미대갈래",
+  "description": "월간 미대입시 38년 데이터로 찾는 나의 미대 입시 길",
+  "lang": "ko",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#2747D8",
+  "theme_color": "#2747D8",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
