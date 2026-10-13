@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AXES } from "./lib/data";
 
 export function Radar({ scores, size = 220 }: { scores: Record<string, number | null>; size?: number }) {
@@ -64,10 +64,17 @@ export function NumInput({ id, value, min, max, allowEmpty, placeholder, onCommi
     }} />;
 }
 
-// 홈 화면 설치 안내 — 안드로이드는 [설치] 버튼 한 번, 아이폰은 사파리 공유 메뉴 안내. 이미 설치된 앱으로 열면 숨김.
+// 홈 화면 설치 안내 — 이미 설치된 앱으로 열면 숨김.
+// · 크롬 등 설치 이벤트가 오면 [설치] 버튼 한 번
+// · 카카오톡·네이버·앱 안 브라우저는 설치가 막혀 있어 [크롬으로 열기]
+// · 그 밖(삼성 인터넷, 이벤트가 아직 안 온 크롬, 아이폰 사파리)은 메뉴 안내
 export function InstallBar() {
-  const standalone = typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true);
-  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const ua = navigator.userAgent;
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
+  const ios = /iphone|ipad|ipod/i.test(ua);
+  const android = /android/i.test(ua);
+  const inApp = /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|Line\/|DaumApps|; wv\)|Claude/i.test(ua);
+  const samsung = /SamsungBrowser/i.test(ua);
   const [bip, setBip] = useState<any>((window as any).__bip ?? null);
   const [hidden, setHidden] = useState(() => { try { return sessionStorage.getItem("install-bar-off") === "1"; } catch { return false; } });
   const [done, setDone] = useState(false);
@@ -77,12 +84,29 @@ export function InstallBar() {
     window.addEventListener("bip-ready", on); window.addEventListener("appinstalled", ok);
     return () => { window.removeEventListener("bip-ready", on); window.removeEventListener("appinstalled", ok); };
   }, []);
-  if (standalone || hidden || done || (!bip && !ios)) return null;
+  if (standalone || hidden || done || (!ios && !android && !bip)) return null;
   const close = () => { setHidden(true); try { sessionStorage.setItem("install-bar-off", "1"); } catch { /* 무시 */ } };
+  const here = location.href.replace(/^https?:\/\//, "");
+  let msg: string, action: ReactNode = null;
+  if (bip) {
+    msg = "홈 화면에 아이콘을 만들어 바로 열어요";
+    action = <button className="btn" onClick={async () => { bip.prompt(); const r = await bip.userChoice; if (r?.outcome === "accepted") setDone(true); (window as any).__bip = null; setBip(null); }}>설치</button>;
+  } else if (inApp && android) {
+    msg = "이 화면에서는 설치가 안 돼요. 크롬으로 열어 설치하세요";
+    action = <a className="btn" href={`intent://${here}#Intent;scheme=https;package=com.android.chrome;end`}>크롬으로 열기</a>;
+  } else if (inApp && ios) {
+    msg = "오른쪽 아래 ··· 또는 공유 → 'Safari로 열기' 후 설치하세요";
+  } else if (ios) {
+    msg = "아래 공유 버튼(□↑) → '홈 화면에 추가'를 누르세요";
+  } else if (samsung) {
+    msg = "아래 메뉴(≡) → '현재 페이지 추가' → '홈 화면'을 누르세요";
+  } else {
+    msg = "오른쪽 위 메뉴(⋮) → '홈 화면에 추가' 또는 '앱 설치'를 누르세요";
+  }
   return <div className="install-bar" role="region" aria-label="앱 설치">
     <img src="./icon-192.png" alt="" width={40} height={40} />
-    <div className="t"><b>미대갈래 앱 설치</b><span>{bip ? "홈 화면에 아이콘을 만들어 바로 열어요" : "사파리 아래 공유(□↑) → '홈 화면에 추가'"}</span></div>
-    {bip && <button className="btn" onClick={async () => { bip.prompt(); const r = await bip.userChoice; if (r?.outcome === "accepted") setDone(true); (window as any).__bip = null; setBip(null); }}>설치</button>}
+    <div className="t"><b>미대갈래 앱 설치</b><span>{msg}</span></div>
+    {action}
     <button className="x" aria-label="닫기" onClick={close}>×</button>
   </div>;
 }

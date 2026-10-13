@@ -10,5 +10,5 @@ createRoot(document.getElementById("root")!).render(<StrictMode><App /></StrictM
 
 // 폰 홈 화면에 설치(PWA)할 수 있도록 서비스워커 등록 — 배포본에서만
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js").catch(() => {}); });
+  window.addEventListener("load", () => { navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((r) => r.update()).catch(() => {}); });
 }
