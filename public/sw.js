@@ -1,5 +1,5 @@
 // 미대갈래 서비스워커 — 화면 파일을 기기에 저장해 두어 빠르게 열리고, 새 버전은 다음 실행 때 반영됩니다.
-const CACHE = "midaegallae-v0.6.0";
+const CACHE = "midaegallae-v0.6.1";
 self.addEventListener("install", (e) => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
@@ -7,6 +7,7 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
+  if (req.headers.has("range")) return; // 영상(광고 배너)은 부분 요청이라 캐시를 거치지 않음
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // Supabase·폰트 등 외부 요청은 그대로
   if (req.mode === "navigate") {

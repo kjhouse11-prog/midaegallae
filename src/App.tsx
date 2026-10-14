@@ -5,7 +5,7 @@ import type { Artwork, Award, AuthUser, Profile } from "./lib/store";
 import { NOW, academyMonths, buildPlan, demoAnalysis, examDate, gpaSystem, priorities, toStudent, weekTasks, workAvg, type Ctx } from "./lib/calc";
 import { judge, practicalIndex, recommend, setUniverse, toGpa9, VERDICT_STYLE, type Judgement, type Program, type Verdict } from "./lib/engine";
 import DATA from "./lib/programs.json";
-import { Icon, InstallBar, NumInput, PartBar, Radar } from "./ui";
+import { AdBanner, Icon, InstallBar, NumInput, PartBar, Radar } from "./ui";
 import { APP_VERSION } from "./config";
 
 const PROGRAMS = DATA.programs as Program[];
@@ -56,6 +56,7 @@ function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
       {err && <div className="err" role="alert">{err}</div>}{msg && <div className="ok-msg">{msg}</div>}
       <button className="btn block" disabled={busy}>{busy ? <span className="spinner" /> : mode === "in" ? "로그인" : "가입하기"}</button>
       {mode === "in" && !S.isDemo && <button type="button" className="linkbtn" onClick={reset}>비밀번호를 잊으셨나요?</button>}
+      <AdBanner />
       <p className="tiny">버전 {APP_VERSION}</p>
     </form>
   );
@@ -134,6 +135,7 @@ function Home({ ctx, target, go, open }: { ctx: Ctx; target?: Program; go: (t: T
     <h2 className="sec">이번 주 할 일</h2>
     <div className="card"><ul className="list small">{weekTasks(ctx, target, tj).map((t) => <li key={t}>{t}</li>)}</ul></div>
     {!ctx.works.length && <button className="drop" onClick={() => go("works")}><b>첫 작품을 올려보세요</b><br /><span className="small">작품 진단 점수가 들어가면 실기 지수가 '추정'에서 '실측'으로 바뀌어 판정이 정확해져요</span></button>}
+    <AdBanner />
   </>;
 }
 
