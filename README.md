@@ -35,7 +35,7 @@ npm run dev
 - Supabase 키를 넣지 않으면 데모 모드(데이터는 그 폰에만 저장)
 
 ## 버전
-- 0.6.1 (2026-10-14): 월간 「미대입시」 광고 배너(8초 영상, 누르면 mgood.co.kr) — 로그인 화면 하단·홈 화면 맨 아래. 영상 `src/assets/ad/mgood-ad.mp4`(780×260), 첫 화면 이미지 `mgood-ad-poster.jpg`. 바꾸려면 같은 이름으로 파일만 교체
+- 0.6.1 (2026-10-14): 월간 「미대입시」 광고 배너(8초 영상 v2 확정본, 누르면 https://www.mgood.co.kr/main/index.php) — 첫 화면(로그인) 하단. 영상 `src/assets/ad/mgood-ad.mp4`(780×260), 첫 화면 이미지 `mgood-ad-poster.jpg`. 바꾸려면 같은 이름으로 파일만 교체
 - 0.6.0 (2026-10-13): 대학 데이터 확대 49곳 209행 → 97곳 435행. 서울 순수미술(서양화·동양화·조소·판화), 경기·강원·충청, 영남·호남·제주 미술·디자인 학과 추가. 추가분은 `data/extra_2027.json`(행마다 출처 URL) → `python3 scripts/merge_extra.py` 로 `src/lib/programs.json`에 합침. 출처 대부분 학원 정리본(grinalda.net 등)·대학 모집요강·어디가 재게시 → 편집부 원문 검증 필요
 - 0.5.2: 어느 브라우저에서도 설치 안내, 카카오톡 등 앱 안 브라우저는 [크롬으로 열기]
 - 0.5.1 (2026-10-13): 내신·모의고사 입력칸 수정(지운 칸이 1로 다시 채워지던 문제), 앱 안 [홈 화면에 설치] 안내, 로그인 화면 배경 보티첼리 〈비너스의 탄생〉(퍼블릭 도메인, `fetch-art.yml`로 위키미디어에서 받음). 저장소: github.com/kjhouse11-prog/midaegallae · 주소: https://kjhouse11-prog.github.io/midaegallae/

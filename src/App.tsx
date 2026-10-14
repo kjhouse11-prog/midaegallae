@@ -135,7 +135,6 @@ function Home({ ctx, target, go, open }: { ctx: Ctx; target?: Program; go: (t: T
     <h2 className="sec">이번 주 할 일</h2>
     <div className="card"><ul className="list small">{weekTasks(ctx, target, tj).map((t) => <li key={t}>{t}</li>)}</ul></div>
     {!ctx.works.length && <button className="drop" onClick={() => go("works")}><b>첫 작품을 올려보세요</b><br /><span className="small">작품 진단 점수가 들어가면 실기 지수가 '추정'에서 '실측'으로 바뀌어 판정이 정확해져요</span></button>}
-    <AdBanner />
   </>;
 }
 
