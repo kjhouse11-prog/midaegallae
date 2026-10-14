@@ -1,5 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AXES } from "./lib/data";
+import adVideo from "./assets/ad/mgood-ad.mp4";
+import adWebm from "./assets/ad/mgood-ad.webm";
+import adPoster from "./assets/ad/mgood-ad-poster.jpg";
 
 export function Radar({ scores, size = 220 }: { scores: Record<string, number | null>; size?: number }) {
   const c = size / 2, r = size / 2 - 34, n = AXES.length;
@@ -109,4 +112,18 @@ export function InstallBar() {
     {action}
     <button className="x" aria-label="닫기" onClick={close}>×</button>
   </div>;
+}
+
+// 월간 「미대입시」 광고 배너 — 8초 영상이 소리 없이 반복 재생, 누르면 홈페이지로 이동
+export const AD_URL = "https://www.mgood.co.kr/main/index.php";
+export function AdBanner() {
+  const still = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ref = useRef<HTMLVideoElement>(null);
+  // 일부 폰 브라우저는 muted 속성이 확실히 붙어 있어야 자동 재생됨
+  useEffect(() => { const v = ref.current; if (!v) return; v.muted = true; v.play().catch(() => {}); }, []);
+  return (
+    <a className="ad-banner" href={AD_URL} target="_blank" rel="noopener" aria-label="월간 미대입시 홈페이지 바로가기 (광고)">
+      {still ? <img src={adPoster} alt="" /> : <video ref={ref} poster={adPoster} autoPlay muted loop playsInline preload="auto" aria-hidden="true"><source src={adVideo} type="video/mp4" /><source src={adWebm} type="video/webm" /></video>}
+    </a>
+  );
 }
