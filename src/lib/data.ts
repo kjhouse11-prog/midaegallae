@@ -1,6 +1,6 @@
 // 공통 코드 — 대학·전형 데이터는 programs.json (2027 모집 · 2026 입결, 조사 2026-10-12) / 추후 Supabase admissions·results 테이블
-export const MAJORS = ["시각디자인", "산업디자인", "공예", "패션디자인", "실내·공간디자인", "영상·미디어", "애니메이션", "회화", "조소", "미술교육", "기타"] as const;
-export const GENRES = ["기초디자인", "사고의전환", "소묘", "수채화", "발상과표현", "인체"] as const;
+export const MAJORS = ["시각디자인", "산업디자인", "공예", "패션디자인", "실내·공간디자인", "영상·미디어", "애니메이션", "만화·웹툰", "회화", "조소", "미술교육", "기타"] as const;
+export const GENRES = ["기초디자인", "사고의전환", "소묘", "수채화", "발상과표현", "인체", "칸만화", "상황표현"] as const;
 export const AXES = ["구도", "형태", "명암", "색채", "완성도", "발상"] as const;
 export const REGIONS = ["서울", "경기", "인천", "강원", "대전", "세종", "충북", "충남", "광주", "전북", "전남", "대구", "경북", "부산", "울산", "경남", "제주"];
 export type Axis = (typeof AXES)[number];

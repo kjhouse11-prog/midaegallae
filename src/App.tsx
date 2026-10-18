@@ -3,7 +3,7 @@ import { DRILL, GENRES, MAJORS } from "./lib/data";
 import * as S from "./lib/store";
 import type { Artwork, Award, AuthUser, Profile } from "./lib/store";
 import { NOW, academyMonths, buildPlan, demoAnalysis, examDate, gpaSystem, priorities, toStudent, weekTasks, workAvg, type Ctx } from "./lib/calc";
-import { judge, practicalIndex, recommend, setUniverse, toGpa9, VERDICT_STYLE, type Judgement, type Program, type Verdict } from "./lib/engine";
+import { judge, majorMatch, practicalIndex, recommend, setUniverse, toGpa9, VERDICT_STYLE, type Judgement, type Program, type Verdict } from "./lib/engine";
 import DATA from "./lib/programs.json";
 import { AdBanner, Icon, InstallBar, NumInput, PartBar, Radar } from "./ui";
 import { APP_VERSION } from "./config";
@@ -108,7 +108,6 @@ function Onboard({ go }: { go: () => void }) {
   return <><h1 className="page">반가워요!<br />먼저 입시 프로필을 만들어요</h1><p className="lead">학교·학년·내신·학원 기간·수상 경력을 알려주면 전국 미술대학 {PROGRAMS.length}개 모집단위에서 내 위치를 판정해 드려요.</p><button className="btn block" onClick={go}>프로필 만들기</button></>;
 }
 
-const majorMatch = (p: Program, major: string) => p.major === major || (p.major === "디자인(통합)" && /디자인|미디어|공예/.test(major));
 function DataBadge({ j }: { j: Judgement }) { return <span className="badge">{j.data}</span>; }
 
 // ---------------- 홈 ----------------
