@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AXES } from "./lib/data";
-import adVideo from "./assets/ad/mgood-ad.mp4";
-import adWebm from "./assets/ad/mgood-ad.webm";
-import adPoster from "./assets/ad/mgood-ad-poster.jpg";
+import { ADS, MGOOD_URL, type Ad } from "./lib/ads";
 
 export function Radar({ scores, size = 220 }: { scores: Record<string, number | null>; size?: number }) {
   const c = size / 2, r = size / 2 - 34, n = AXES.length;
@@ -114,16 +112,35 @@ export function InstallBar() {
   </div>;
 }
 
-// 월간 「미대입시」 광고 배너 — 8초 영상이 소리 없이 반복 재생, 누르면 홈페이지로 이동
-export const AD_URL = "https://www.mgood.co.kr/main/index.php";
+// 하단 광고 배너 — 광고 목록(lib/ads.ts)을 8초 영상 한 편씩 차례로 소리 없이 재생.
+// 화면을 옮겨도 다음 광고부터 이어서 나오도록 순번을 모듈에 보관.
+let adTurn = 0;
 export function AdBanner() {
   const still = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [i, setI] = useState(() => adTurn % ADS.length);
+  const [info, setInfo] = useState<Ad | null>(null);
   const ref = useRef<HTMLVideoElement>(null);
+  const next = () => { adTurn = (adTurn + 1) % ADS.length; setI(adTurn); };
   // 일부 폰 브라우저는 muted 속성이 확실히 붙어 있어야 자동 재생됨
-  useEffect(() => { const v = ref.current; if (!v) return; v.muted = true; v.play().catch(() => {}); }, []);
-  return (
-    <a className="ad-banner" href={AD_URL} target="_blank" rel="noopener" aria-label="월간 미대입시 홈페이지 바로가기 (광고)">
-      {still ? <img src={adPoster} alt="" /> : <video ref={ref} poster={adPoster} autoPlay muted loop playsInline preload="auto" aria-hidden="true"><source src={adVideo} type="video/mp4" /><source src={adWebm} type="video/webm" /></video>}
-    </a>
-  );
+  useEffect(() => { const v = ref.current; if (!v) return; v.muted = true; v.play().catch(() => {}); }, [i]);
+  // 정지 이미지 모드는 8초마다, 영상은 끝나면 넘어감. 자동 재생이 막힌 기기(절전 모드 등)도 10초 뒤 넘어가도록 안전장치
+  useEffect(() => { const t = setTimeout(next, still ? 8000 : 10000); return () => clearTimeout(t); }, [i, still]);
+  const ad = ADS[i];
+  const media = still ? <img src={ad.poster} alt="" /> :
+    <video key={ad.id} ref={ref} poster={ad.poster} autoPlay muted playsInline preload="auto" aria-hidden="true" onEnded={next}><source src={ad.mp4} type="video/mp4" /><source src={ad.webm} type="video/webm" onError={next} /></video>;
+  const dots = <span className="ad-dots" aria-hidden="true">{ADS.map((a, k) => <i key={a.id} className={k === i ? "on" : ""} />)}</span>;
+  return <>
+    {ad.url && !ad.sample
+      ? <a className="ad-banner" href={ad.url} target="_blank" rel="noopener" aria-label={`${ad.name} 바로가기 (광고)`}>{media}{dots}</a>
+      : <button type="button" className="ad-banner" onClick={() => setInfo(ad)} aria-label={`${ad.name} (샘플 광고)`}>{media}{dots}</button>}
+    {info && <div className="ad-sheet" role="dialog" aria-modal="true" aria-label="샘플 광고 안내" onClick={() => setInfo(null)}>
+      <div className="ad-sheet-box" onClick={(e) => e.stopPropagation()}>
+        <span className="pill">베타 · 샘플 광고</span>
+        <b>{info.name}</b>
+        <p className="small">미대갈래 하단 광고가 어떻게 보이는지 보여 드리기 위해 만든 가상의 {info.kind} 광고예요. 실제 서비스에서는 이 자리를 누르면 광고주의 홈페이지나 접수 페이지로 연결됩니다.</p>
+        <a className="btn block" href={MGOOD_URL} target="_blank" rel="noopener">광고 문의 · 월간 미대입시</a>
+        <button type="button" className="linkbtn" onClick={() => setInfo(null)}>닫기</button>
+      </div>
+    </div>}
+  </>;
 }

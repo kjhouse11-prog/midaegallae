@@ -146,6 +146,14 @@ label.f input:focus,label.f select:focus{outline:2px solid var(--accent);outline
 .auth .hero .credit{position:absolute;right:10px;bottom:8px;font-size:10px;color:rgba(255,255,255,.7)}
 
 /* 월간 「미대입시」 광고 배너 (3:1, 영상 자체에 '광고' 표기 포함) */
-.ad-banner{display:block;margin-top:auto;border-radius:14px;overflow:hidden;aspect-ratio:3/1;background:#1B2F9E;box-shadow:var(--shadow)}
+.ad-banner{display:block;position:relative;width:100%;padding:0;border:0;cursor:pointer;flex-shrink:0;margin-top:auto;border-radius:14px;overflow:hidden;aspect-ratio:3/1;background:#1B2F9E;box-shadow:var(--shadow)}
 .ad-banner video,.ad-banner img{display:block;width:100%;height:100%;object-fit:cover}
 .ad-banner:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ad-dots{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);display:flex;gap:4px}
+.ad-dots i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.45);box-shadow:0 0 2px rgba(0,0,0,.35)}
+.ad-dots i.on{background:#fff;width:12px;border-radius:3px}
+.ad-sheet{position:fixed;inset:0;z-index:50;background:rgba(10,12,20,.45);display:flex;align-items:flex-end;justify-content:center}
+.ad-sheet-box{width:100%;max-width:430px;background:var(--card);border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.ad-sheet-box b{font-family:var(--f-display);font-size:20px}
+.ad-sheet-box .btn{margin-top:4px;text-align:center;text-decoration:none}
+.ad-sheet-box .linkbtn{align-self:center}
