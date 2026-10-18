@@ -95,7 +95,7 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   return (
     <>
       <header className="top"><div className="brand"><b>미대갈래</b><span>by 월간 미대입시</span></div><span className="pill">베타 v{APP_VERSION}</span></header>
-      <main id="view">{err && <div className="notice" role="alert">{err}</div>}{view}</main>
+      <main id="view">{err && <div className="notice" role="alert">{err}</div>}{view}<AdBanner /></main>
       <nav className="tabs" aria-label="주요 메뉴">
         {([["home", "홈"], ["works", "내 작품"], ["match", "대학찾기"], ["road", "로드맵"], ["me", "마이"]] as [Tab, string][]).map(([k, t]) =>
           <button key={k} aria-current={tab === k ? "page" : undefined} onClick={() => go(k)}><Icon name={k} />{t}</button>)}
