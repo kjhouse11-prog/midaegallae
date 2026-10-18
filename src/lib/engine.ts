@@ -145,11 +145,14 @@ export function judge(p: Program, s: Student): Judgement {
 }
 
 const ORDER: Verdict[] = ["안정", "적정", "소신", "상향"];
+// 희망 전공 ↔ 학과 분류 매칭. 만화애니메이션·웹툰애니메이션처럼 겹치는 학과는 만화·웹툰과 애니메이션 양쪽에 보여요
+export const majorMatch = (p: Program, major: string) => p.major === major || (p.major === "디자인(통합)" && /디자인|미디어|공예/.test(major)) ||
+  (major === "만화·웹툰" && /만화|웹툰/.test(p.dept)) || (major === "애니메이션" && /애니/.test(p.dept));
 export interface Filter { major?: string; regions?: string[]; round?: "수시" | "정시" | "전체"; ttypes?: string[]; }
 export function recommend(list: Program[], s: Student, f: Filter = {}) {
   if (!UNIV_TIER) setUniverse(list);
   return list
-    .filter((p) => (!f.major || f.major === "전체" || p.major === f.major || (p.major === "디자인(통합)" && f.major.includes("디자인"))) &&
+    .filter((p) => (!f.major || f.major === "전체" || majorMatch(p, f.major)) &&
       (!f.regions?.length || f.regions.includes(p.region)) && (!f.round || f.round === "전체" || p.round === f.round) && (!f.ttypes?.length || f.ttypes.includes(p.ttype)))
     .map((p) => ({ p, j: judge(p, s) }))
     // 판정 구간 순(안정→상향), 같은 구간 안에서는 선호도(난이도) 높은 대학부터
