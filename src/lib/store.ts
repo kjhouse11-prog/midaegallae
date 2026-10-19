@@ -1,6 +1,7 @@
 // 데이터 저장 계층: Supabase가 설정되어 있으면 서버에, 아니면 이 기기(데모 모드)에 저장
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config";
+import { SOLID_VIEWS } from "./data";
 
 export interface Profile {
   name: string; grade: "고1" | "고2" | "고3" | "N수"; gpa: number; mock: number; major: string;
@@ -9,7 +10,9 @@ export interface Profile {
 }
 export interface Award { id: string; title: string; level?: string; awardedOn?: string; verified?: boolean }
 export interface Analysis { scores: Record<string, number | null>; strengths: string[]; improvements: string[]; comment: string; nextTask?: string; model?: string }
-export interface Artwork { id: string; url: string; path: string; genre: string; title?: string; madeOn: string; analysis?: Analysis | null }
+export interface ArtView { key: string; label: string; url: string; path: string }
+// views: 조형·공예 계열 입체 작품의 앞·뒤·좌·우 4면 사진 (url·path는 앞면)
+export interface Artwork { id: string; url: string; path: string; genre: string; title?: string; madeOn: string; analysis?: Analysis | null; views?: ArtView[] }
 
 export const DEFAULT_PROFILE: Profile = { name: "", grade: "고2", gpa: 3, mock: 60, major: "시각디자인", regions: ["서울", "경기"], academyStart: "", guardianConsent: false, mockKnown: false, school: "", schoolType: "일반고" };
 
@@ -115,10 +118,14 @@ export async function listArtworks(u: AuthUser): Promise<Artwork[]> {
     if (error) throw new Error(error.message);
     const rows = data || [];
     if (!rows.length) return [];
-    const { data: signed } = await sb.storage.from("artworks").createSignedUrls(rows.map((r) => r.image_path), 60 * 60);
-    return rows.map((r, i) => {
+    // 4면 작품은 앞면 경로(…-front.jpg)만 DB에 저장하고 나머지 면은 같은 이름 규칙으로 찾음 (DB 구조 변경 없음)
+    const paths = rows.flatMap((r) => viewPaths(r.image_path) || [r.image_path]);
+    const { data: signed } = await sb.storage.from("artworks").createSignedUrls(paths, 60 * 60);
+    const urlOf = new Map(paths.map((p, i) => [p, signed?.[i]?.signedUrl || ""]));
+    return rows.map((r) => {
       const a = (r.analyses || []).sort((x: { id: number }, y: { id: number }) => y.id - x.id)[0];
-      return { id: r.id, path: r.image_path, url: signed?.[i]?.signedUrl || "", genre: r.genre || "", title: r.title || "", madeOn: r.made_on || String(r.created_at).slice(0, 10),
+      const vp = viewPaths(r.image_path);
+      return { id: r.id, path: r.image_path, url: urlOf.get(r.image_path) || "", views: vp ? vp.map((p, k) => ({ key: SOLID_VIEWS[k][0], label: SOLID_VIEWS[k][1], path: p, url: urlOf.get(p) || "" })) : undefined, genre: r.genre || "", title: r.title || "", madeOn: r.made_on || String(r.created_at).slice(0, 10),
         analysis: a ? { scores: a.scores, strengths: a.strengths || [], improvements: a.improvements || [], comment: a.comment || "", nextTask: a.next_task || "", model: a.model } : null };
     });
   }
@@ -138,11 +145,35 @@ export async function uploadArtwork(u: AuthUser, file: File, genre: string): Pro
   const url = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(small); });
   const d = lread(); d.works.unshift({ id: uid(), url, path: "", genre, madeOn: new Date().toISOString().slice(0, 10), analysis: null }); lwrite(d);
 }
+const viewPaths = (front: string) => front.endsWith("-front.jpg") ? SOLID_VIEWS.map(([k]) => front.replace(/-front\.jpg$/, `-${k}.jpg`)) : null;
+// 입체 작품 4면 업로드 — files는 앞·뒤·좌·우 순서
+export async function uploadSolidArtwork(u: AuthUser, files: File[], genre: string): Promise<void> {
+  if (files.length !== SOLID_VIEWS.length) throw new Error("앞·뒤·좌·우 4면 사진이 모두 필요해요.");
+  if (sb) {
+    const base = `${u.id}/${Date.now()}-${uid()}`, done: string[] = [];
+    try {
+      for (let k = 0; k < files.length; k++) {
+        const path = `${base}-${SOLID_VIEWS[k][0]}.jpg`;
+        const up = await sb.storage.from("artworks").upload(path, await shrink(files[k], 1600), { contentType: "image/jpeg", upsert: false });
+        if (up.error) throw new Error(`${SOLID_VIEWS[k][1]}면 사진을 올리지 못했어요: ` + up.error.message);
+        done.push(path);
+      }
+      const { error } = await sb.from("artworks").insert({ user_id: u.id, image_path: done[0], genre, made_on: new Date().toISOString().slice(0, 10) });
+      if (error) throw new Error("작품 정보를 저장하지 못했어요: " + error.message);
+    } catch (x) { if (done.length) await sb.storage.from("artworks").remove(done); throw x; }
+    return;
+  }
+  const urls: string[] = [];
+  for (const f of files) { const small = await shrink(f, 700); urls.push(await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(small); })); }
+  const d = lread();
+  d.works.unshift({ id: uid(), url: urls[0], path: "", genre, madeOn: new Date().toISOString().slice(0, 10), analysis: null, views: urls.map((url, k) => ({ key: SOLID_VIEWS[k][0], label: SOLID_VIEWS[k][1], url, path: "" })) });
+  lwrite(d);
+}
 export async function deleteArtwork(w: Artwork): Promise<void> {
   if (sb) {
     const { error } = await sb.from("artworks").delete().eq("id", w.id);
     if (error) throw new Error(error.message);
-    await sb.storage.from("artworks").remove([w.path]);
+    await sb.storage.from("artworks").remove(w.views?.length ? w.views.map((v) => v.path) : [w.path]);
     return;
   }
   const d = lread(); d.works = d.works.filter((x) => x.id !== w.id); lwrite(d);

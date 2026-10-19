@@ -1,6 +1,19 @@
 // 공통 코드 — 대학·전형 데이터는 programs.json (2027 모집 · 2026 입결, 조사 2026-10-12) / 추후 Supabase admissions·results 테이블
 export const MAJORS = ["시각디자인", "산업디자인", "공예", "패션디자인", "실내·공간디자인", "영상·미디어", "애니메이션", "만화·웹툰", "회화", "조소", "미술교육", "기타"] as const;
-export const GENRES = ["기초디자인", "사고의전환", "소묘", "수채화", "발상과표현", "인체", "칸만화", "상황표현"] as const;
+// 작품 분야 — 계열별로 묶어 선택창에 표시. 값은 그대로 작품의 '분야'로 저장(이전 버전의 '장르' 값도 그대로 호환).
+// 게임 계열 상황표현은 만화·애니 상황표현과 구분되도록 값에 (게임)을 붙임.
+// solid: true 계열은 입체 작품이라 앞·뒤·좌·우 4면 사진을 한 작품으로 올림.
+export const FIELD_GROUPS: { group: string; fields: string[]; solid?: boolean }[] = [
+  { group: "디자인 계열", fields: ["기초디자인", "사고의전환", "발상과표현", "기초조형"] },
+  { group: "회화·드로잉 계열", fields: ["소묘", "수채화", "인체", "한국화"] },
+  { group: "만화·애니메이션 계열", fields: ["상황표현", "칸만화", "이미지보드", "캐릭터디자인", "애니메이션", "웹툰"] },
+  { group: "게임 계열", fields: ["게임포스터", "컨셉아트", "상황표현(게임)"] },
+  { group: "조형·공예 계열", fields: ["조소", "공예", "입체조형"], solid: true },
+];
+export const FIELDS = FIELD_GROUPS.flatMap((g) => g.fields);
+export const isSolidField = (f: string) => FIELD_GROUPS.some((g) => g.solid && g.fields.includes(f));
+export const fieldGroup = (f: string) => FIELD_GROUPS.find((g) => g.fields.includes(f))?.group ?? "";
+export const SOLID_VIEWS = [["front", "앞"], ["back", "뒤"], ["left", "좌"], ["right", "우"]] as const;
 export const AXES = ["구도", "형태", "명암", "색채", "완성도", "발상"] as const;
 export const REGIONS = ["서울", "경기", "인천", "강원", "대전", "세종", "충북", "충남", "광주", "전북", "전남", "대구", "경북", "부산", "울산", "경남", "제주"];
 export type Axis = (typeof AXES)[number];

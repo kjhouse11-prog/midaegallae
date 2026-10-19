@@ -83,3 +83,14 @@ export async function demoAnalysis(url: string): Promise<Analysis> {
     improvements: [`${last} 보완이 필요해 보여요: ${DRILL[last]}`, "화면 가장자리까지 마감을 고르게 해 주세요."],
     comment: "이미지의 밝기·채도·윤곽 분포로 계산한 데모 결과입니다. 다음 업데이트에서 Claude가 작품을 직접 보고 강사 수준의 코멘트를 드립니다.", nextTask: DRILL[last] };
 }
+// 입체 작품(조형·공예) — 앞·뒤·좌·우 사진을 각각 분석해 평균. 사진만으로는 양감·공간감을 다 볼 수 없어 참고용
+export async function demoSolidAnalysis(urls: string[]): Promise<Analysis> {
+  const all = await Promise.all(urls.map(demoAnalysis));
+  const scores: Record<string, number | null> = {};
+  for (const k of AXES) { const v = all.map((a) => a.scores[k]).filter((x): x is number => typeof x === "number"); scores[k] = v.length ? Math.round(v.reduce((s, x) => s + x, 0) / v.length) : null; }
+  const sorted = AXES.filter((a) => scores[a] != null).sort((a, b) => (scores[b] as number) - (scores[a] as number));
+  const last = sorted[sorted.length - 1];
+  return { model: "demo-stats", scores, strengths: [`4면 모두에서 ${sorted[0]} 항목이 상대적으로 안정적이에요.`, `${sorted[1]}에서도 기본기가 보여요.`],
+    improvements: [`${last} 보완이 필요해 보여요: ${DRILL[last]}`, "보는 방향마다 형태가 이어지는지(앞→옆→뒤) 돌려 보며 점검해 주세요."],
+    comment: "앞·뒤·좌·우 4면 사진의 밝기·채도·윤곽 분포를 평균한 데모 결과입니다. 사진으로는 양감·무게감·재료의 질감이 충분히 드러나지 않아 실제 실기 평가와 차이가 클 수 있어요.", nextTask: DRILL[last] };
+}
