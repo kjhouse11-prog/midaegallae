@@ -157,3 +157,22 @@ label.f input:focus,label.f select:focus{outline:2px solid var(--accent);outline
 .ad-sheet-box b{font-family:var(--f-display);font-size:20px}
 .ad-sheet-box .btn{margin-top:4px;text-align:center;text-decoration:none}
 .ad-sheet-box .linkbtn{align-self:center}
+/* 입체 작품 4면 업로드 */
+.sides{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.side{position:relative;aspect-ratio:1;border:1.5px dashed var(--line);border-radius:12px;background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden}
+.side.has{border-style:solid;border-color:var(--accent)}
+.side img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.side .plus{font-size:22px;color:var(--ink-2)}
+.side .side-l{position:absolute;left:6px;bottom:6px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;background:rgba(0,0,0,.6);color:#fff}
+.work{position:relative}
+.work .pill.four{position:absolute;top:8px;left:8px}
+/* 수상 입시특전 */
+.benefits{display:flex;flex-direction:column;gap:8px}
+.benefit{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.benefit a{color:var(--accent)}
+.benefit-hit{color:var(--accent);font-weight:600}
+/* 광고 배너 드래그 */
+.ad-track{position:relative;flex-shrink:0;margin-top:auto;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.ad-track .ad-banner{margin-top:0;transition:transform .25s ease}
+.ad-track.dragging .ad-banner{transition:none}
+.ad-banner img,.ad-banner video{-webkit-user-drag:none;pointer-events:none}

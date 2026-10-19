@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { AXES } from "./lib/data";
 import { ADS, MGOOD_URL, type Ad } from "./lib/ads";
 
@@ -114,6 +114,7 @@ export function InstallBar() {
 
 // 하단 광고 배너 — 광고 목록(lib/ads.ts)을 8초 영상 한 편씩 차례로 소리 없이 재생.
 // 화면을 옮겨도 다음 광고부터 이어서 나오도록 순번을 모듈에 보관.
+// 손가락(마우스)으로 좌우로 끌면 이전·다음 광고로 넘어감. 끈 직후의 누름은 링크로 처리하지 않음.
 let adTurn = 0;
 export function AdBanner() {
   const still = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -121,18 +122,43 @@ export function AdBanner() {
   const [info, setInfo] = useState<Ad | null>(null);
   const ref = useRef<HTMLVideoElement>(null);
   const next = () => { adTurn = (adTurn + 1) % ADS.length; setI(adTurn); };
+  const prev = () => { adTurn = (adTurn - 1 + ADS.length) % ADS.length; setI(adTurn); };
+  const [dx, setDx] = useState(0);
+  const drag = useRef<{ x: number; y: number; id: number; moved: boolean } | null>(null);
+  const swiped = useRef(false);
+  const onDown = (e: RPointerEvent) => { if (e.button !== 0) return; drag.current = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false }; swiped.current = false; };
+  const onMove = (e: RPointerEvent) => {
+    const d = drag.current; if (!d || d.id !== e.pointerId) return;
+    const mx = e.clientX - d.x, my = e.clientY - d.y;
+    if (!d.moved) { if (Math.abs(mx) < 8 || Math.abs(mx) < Math.abs(my)) return; d.moved = true; try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* 무시 */ } }
+    setDx(mx);
+  };
+  const onUp = (e: RPointerEvent) => {
+    const d = drag.current; drag.current = null; if (!d || d.id !== e.pointerId) return;
+    if (d.moved) { swiped.current = true; const w = (e.currentTarget as HTMLElement).offsetWidth || 300; const mx = e.clientX - d.x; if (mx <= -w * 0.18) next(); else if (mx >= w * 0.18) prev(); }
+    setDx(0);
+  };
+  const onCancel = () => { drag.current = null; setDx(0); };
+  // 끌어서 넘긴 직후 발생하는 click은 막아 링크·안내창이 뜨지 않게
+  const onClickCap = (e: RMouseEvent) => { if (swiped.current) { e.preventDefault(); e.stopPropagation(); swiped.current = false; } };
   // 일부 폰 브라우저는 muted 속성이 확실히 붙어 있어야 자동 재생됨
   useEffect(() => { const v = ref.current; if (!v) return; v.muted = true; v.play().catch(() => {}); }, [i]);
   // 정지 이미지 모드는 8초마다, 영상은 끝나면 넘어감. 자동 재생이 막힌 기기(절전 모드 등)도 10초 뒤 넘어가도록 안전장치
-  useEffect(() => { const t = setTimeout(next, still ? 8000 : 10000); return () => clearTimeout(t); }, [i, still]);
+  // 끄는 중에는 자동으로 넘어가지 않음
+  useEffect(() => { if (dx) return; const t = setTimeout(next, still ? 8000 : 10000); return () => clearTimeout(t); }, [i, still, dx !== 0]);
   const ad = ADS[i];
   const media = still ? <img src={ad.poster} alt="" /> :
     <video key={ad.id} ref={ref} poster={ad.poster} autoPlay muted playsInline preload="auto" aria-hidden="true" onEnded={next}><source src={ad.mp4} type="video/mp4" /><source src={ad.webm} type="video/webm" onError={next} /></video>;
   const dots = <span className="ad-dots" aria-hidden="true">{ADS.map((a, k) => <i key={a.id} className={k === i ? "on" : ""} />)}</span>;
+  const style = dx ? { transform: `translateX(${dx}px)` } : undefined;
   return <>
+    <div className={`ad-track${dx ? " dragging" : ""}`} role="region" aria-roledescription="광고 슬라이드" aria-label={`광고 ${i + 1}/${ADS.length} · 좌우로 넘기기`}
+      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onCancel} onClickCapture={onClickCap} onDragStart={(e) => e.preventDefault()}
+      onKeyDown={(e) => { if (e.key === "ArrowRight") next(); else if (e.key === "ArrowLeft") prev(); }}>
     {ad.url && !ad.sample
-      ? <a className="ad-banner" href={ad.url} target="_blank" rel="noopener" aria-label={`${ad.name} 바로가기 (광고)`}>{media}{dots}</a>
-      : <button type="button" className="ad-banner" onClick={() => setInfo(ad)} aria-label={`${ad.name} (샘플 광고)`}>{media}{dots}</button>}
+      ? <a className="ad-banner" style={style} href={ad.url} target="_blank" rel="noopener" draggable={false} aria-label={`${ad.name} 바로가기 (광고)`}>{media}{dots}</a>
+      : <button type="button" className="ad-banner" style={style} onClick={() => setInfo(ad)} aria-label={`${ad.name} (샘플 광고)`}>{media}{dots}</button>}
+    </div>
     {info && <div className="ad-sheet" role="dialog" aria-modal="true" aria-label="샘플 광고 안내" onClick={() => setInfo(null)}>
       <div className="ad-sheet-box" onClick={(e) => e.stopPropagation()}>
         <span className="pill">베타 · 샘플 광고</span>

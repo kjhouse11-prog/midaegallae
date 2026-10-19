@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { DRILL, GENRES, MAJORS } from "./lib/data";
+import { DRILL, FIELD_GROUPS, FIELDS, MAJORS, SOLID_VIEWS, fieldGroup, isSolidField } from "./lib/data";
+import { BENEFITS, benefitFor } from "./lib/benefits";
 import * as S from "./lib/store";
 import type { Artwork, Award, AuthUser, Profile } from "./lib/store";
-import { NOW, academyMonths, buildPlan, demoAnalysis, examDate, gpaSystem, priorities, toStudent, weekTasks, workAvg, type Ctx } from "./lib/calc";
+import { NOW, academyMonths, buildPlan, demoAnalysis, demoSolidAnalysis, examDate, gpaSystem, priorities, toStudent, weekTasks, workAvg, type Ctx } from "./lib/calc";
 import { judge, majorMatch, practicalIndex, recommend, setUniverse, toGpa9, VERDICT_STYLE, type Judgement, type Program, type Verdict } from "./lib/engine";
 import DATA from "./lib/programs.json";
 import { AdBanner, Icon, InstallBar, NumInput, PartBar, Radar } from "./ui";
@@ -139,47 +140,80 @@ function Home({ ctx, target, go, open }: { ctx: Ctx; target?: Program; go: (t: T
 
 // ---------------- 내 작품 ----------------
 function Works({ user, works, reload, detail, setDetail }: { user: AuthUser; works: Artwork[]; reload: () => Promise<void>; detail: string | null; setDetail: (id: string | null) => void }) {
-  const [genre, setGenre] = useState<string>(GENRES[0]); const [busy, setBusy] = useState(""), [err, setErr] = useState(""); const [over, setOver] = useState(false);
+  const [field, setField] = useState<string>(FIELDS[0]); const [busy, setBusy] = useState(""), [err, setErr] = useState(""); const [over, setOver] = useState(false);
+  const [sides, setSides] = useState<(File | null)[]>(() => SOLID_VIEWS.map(() => null));
   const fileRef = useRef<HTMLInputElement>(null);
+  const solid = isSolidField(field);
+  const okType = (f: File) => /^image\/(jpeg|png|webp)$/.test(f.type);
+  const previews = useMemo(() => sides.map((f) => (f ? URL.createObjectURL(f) : "")), [sides]);
+  useEffect(() => () => previews.forEach((u) => u && URL.revokeObjectURL(u)), [previews]);
   async function add(files: FileList | null) {
     if (!files?.length) return; setErr("");
-    const list = [...files].filter((f) => /^image\/(jpeg|png|webp)$/.test(f.type)).slice(0, 6);
+    const list = [...files].filter(okType).slice(0, 6);
     if (!list.length) { setErr("JPG·PNG·WEBP 사진만 올릴 수 있어요."); return; }
-    try { for (let i = 0; i < list.length; i++) { setBusy(`올리는 중… (${i + 1}/${list.length})`); await S.uploadArtwork(user, list[i], genre); } await reload(); }
+    try { for (let i = 0; i < list.length; i++) { setBusy(`올리는 중… (${i + 1}/${list.length})`); await S.uploadArtwork(user, list[i], field); } await reload(); }
     catch (x) { setErr((x as Error).message); } finally { setBusy(""); if (fileRef.current) fileRef.current.value = ""; }
+  }
+  function pickSide(k: number, files: FileList | null) {
+    setErr(""); const f = files?.[0]; if (!f) return;
+    if (!okType(f)) { setErr("JPG·PNG·WEBP 사진만 올릴 수 있어요."); return; }
+    setSides((s) => s.map((x, i) => (i === k ? f : x)));
+  }
+  async function addSolid() {
+    if (sides.some((f) => !f)) { setErr("앞·뒤·좌·우 4면 사진을 모두 넣어 주세요."); return; }
+    setErr(""); setBusy("4면 사진 올리는 중…");
+    try { await S.uploadSolidArtwork(user, sides as File[], field); setSides(SOLID_VIEWS.map(() => null)); await reload(); }
+    catch (x) { setErr((x as Error).message); } finally { setBusy(""); }
   }
   const sel = works.find((w) => w.id === detail);
   if (sel) return <WorkView w={sel} back={() => setDetail(null)} reload={reload} />;
   return <>
     <h1 className="page">내 작품</h1><p className="lead">그림을 올리면 입시 실기 기준으로 분석해 드려요.</p>
-    <label className={`drop${over ? " over" : ""}`} htmlFor="file" onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={(e) => { e.preventDefault(); setOver(false); add(e.dataTransfer.files); }}>
-      {busy ? <><span className="spinner" /> {busy}</> : <><b>사진 올리기</b><br /><span className="small">작품 전체가 보이도록 정면에서 찍어 주세요</span></>}
+    <label className="f">분야
+      <select id="field" value={field} onChange={(e) => { setField(e.target.value); setErr(""); }}>
+        {FIELD_GROUPS.map((g) => <optgroup key={g.group} label={g.group}>{g.fields.map((f) => <option key={f} value={f}>{f.replace("(게임)", "")}{g.solid ? " (4면 촬영)" : ""}</option>)}</optgroup>)}
+      </select>
     </label>
-    <input ref={fileRef} type="file" id="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={(e) => add(e.target.files)} disabled={!!busy} />
-    <div className="row wrap"><span className="small muted">장르</span><select id="genre" className="chip plain" style={{ padding: "6px 10px" }} value={genre} onChange={(e) => setGenre(e.target.value)}>{GENRES.map((g) => <option key={g}>{g}</option>)}</select></div>
+    {solid ? <>
+      <div className="notice small"><b>입체 작품은 4면 사진으로 올려요</b><br />작품을 같은 거리·같은 높이에서 앞·뒤·좌·우로 돌려 가며 찍어 주세요. 사진만으로는 양감·무게감·재료의 질감이 충분히 드러나지 않아, 조형·공예 계열 진단은 <b>참고용</b>이에요. 정확한 평가는 학원 선생님의 실물 확인을 함께 받으세요.</div>
+      <div className="sides">{SOLID_VIEWS.map(([key, label], k) => <label key={key} className={`side${sides[k] ? " has" : ""}`} htmlFor={`side-${key}`}>
+        {previews[k] ? <img src={previews[k]} alt={`${label}면 미리보기`} /> : <span className="plus">+</span>}
+        <span className="side-l">{label}</span>
+        <input id={`side-${key}`} type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={!!busy} onChange={(e) => { pickSide(k, e.target.files); e.target.value = ""; }} />
+      </label>)}</div>
+      <button className="btn block" onClick={addSolid} disabled={!!busy || sides.some((f) => !f)}>{busy ? <><span className="spinner" /> {busy}</> : `4면 작품 올리기 (${sides.filter(Boolean).length}/4)`}</button>
+    </> : <>
+      <label className={`drop${over ? " over" : ""}`} htmlFor="file" onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={(e) => { e.preventDefault(); setOver(false); add(e.dataTransfer.files); }}>
+        {busy ? <><span className="spinner" /> {busy}</> : <><b>사진 올리기</b><br /><span className="small">작품 전체가 보이도록 정면에서 찍어 주세요</span></>}
+      </label>
+      <input ref={fileRef} type="file" id="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={(e) => add(e.target.files)} disabled={!!busy} />
+    </>}
     {err && <div className="err" role="alert">{err}</div>}
     {works.length ? <div className="works">{works.map((w) => { const avg = workAvg(w.analysis); return (
-      <button key={w.id} className="card-btn" onClick={() => setDetail(w.id)}><div className="work"><img src={w.url} alt={`${w.genre} 작품`} loading="lazy" />
-        <div className="meta"><div className="row between"><b className="small">{w.genre}</b>{avg != null ? <span className="num small">{Math.round(avg)}점</span> : <span className="tiny">미분석</span>}</div><span className="tiny">{w.madeOn}</span></div></div></button>); })}</div>
+      <button key={w.id} className="card-btn" onClick={() => setDetail(w.id)}><div className="work"><img src={w.url} alt={`${fieldName(w.genre)} 작품`} loading="lazy" />{w.views?.length ? <span className="pill four">4면</span> : null}
+        <div className="meta"><div className="row between"><b className="small">{fieldName(w.genre)}</b>{avg != null ? <span className="num small">{Math.round(avg)}점</span> : <span className="tiny">미분석</span>}</div><span className="tiny">{fieldGroup(w.genre) || "분야"} · {w.madeOn}</span></div></div></button>); })}</div>
       : <div className="notice">아직 올린 작품이 없어요. 최근 연습작 2~3점을 올려 보세요.</div>}
   </>;
 }
+const fieldName = (f: string) => f.replace("(게임)", " (게임)");
 function WorkView({ w, back, reload }: { w: Artwork; back: () => void; reload: () => Promise<void> }) {
   const [busy, setBusy] = useState(false), [err, setErr] = useState(""), [confirmDel, setConfirmDel] = useState(false); const a = w.analysis;
-  async function analyze() { setBusy(true); setErr(""); try { await S.saveAnalysis(w, await demoAnalysis(w.url)); await reload(); } catch (x) { setErr("분석하지 못했어요: " + (x as Error).message); } finally { setBusy(false); } }
+  const [side, setSide] = useState(0); const views = w.views?.length ? w.views : null; const shown = views ? views[side]?.url || w.url : w.url;
+  async function analyze() { setBusy(true); setErr(""); try { await S.saveAnalysis(w, views ? await demoSolidAnalysis(views.map((v) => v.url)) : await demoAnalysis(w.url)); await reload(); } catch (x) { setErr("분석하지 못했어요: " + (x as Error).message); } finally { setBusy(false); } }
   async function del() { if (!confirmDel) { setConfirmDel(true); return; } try { await S.deleteArtwork(w); back(); await reload(); } catch (x) { setErr((x as Error).message); } }
   return <>
     <button className="back" onClick={back}>← 내 작품</button>
-    <img src={w.url} alt={`${w.genre} 작품`} style={{ width: "100%", borderRadius: 16, border: "1px solid var(--line)", maxHeight: 420, objectFit: "contain", background: "var(--card)" }} />
-    <div className="row between"><h1 className="page" style={{ fontSize: 20 }}>{w.genre}</h1><span className="tiny">{w.madeOn}</span></div>
+    <img src={shown} alt={`${fieldName(w.genre)} 작품${views ? ` ${views[side].label}면` : ""}`} style={{ width: "100%", borderRadius: 16, border: "1px solid var(--line)", maxHeight: 420, objectFit: "contain", background: "var(--card)" }} />
+    {views && <div className="seg" role="group" aria-label="보는 면">{views.map((v, k) => <button key={v.key} aria-pressed={side === k} onClick={() => setSide(k)}>{v.label}</button>)}</div>}
+    <div className="row between"><h1 className="page" style={{ fontSize: 20 }}>{fieldName(w.genre)}</h1><span className="tiny">{fieldGroup(w.genre) ? `${fieldGroup(w.genre)} · ` : ""}{w.madeOn}</span></div>
     {a ? <>
       <div className="card"><div className="row between"><b>AI 실기 진단</b><span className={`chip ${a.model === "demo-stats" ? "plain" : "t-fit"}`}>{a.model === "demo-stats" ? "데모 분석" : "Claude 분석"}</span></div>
         <Radar scores={a.scores} /><div className="row between"><span className="muted small">평균</span><b className="num" style={{ fontSize: 22 }}>{Math.round(workAvg(a) || 0)}</b></div></div>
       <div className="card"><b>잘한 점</b><ul className="list small">{a.strengths.map((s) => <li key={s}>{s}</li>)}</ul><b>보완할 점</b><ul className="list small">{a.improvements.map((s) => <li key={s}>{s}</li>)}</ul></div>
       <div className="card"><b>강사 코멘트</b><p className="small" style={{ margin: 0 }}>{a.comment}</p>{a.nextTask && <div className="notice"><b>다음 연습 과제</b> · {a.nextTask}</div>}</div>
-      <p className="tiny">AI 참고 평가입니다. 실제 심사 결과와 다를 수 있어요.</p>
+      <p className="tiny">AI 참고 평가입니다. 실제 심사 결과와 다를 수 있어요.{views ? " 입체 작품은 사진 4면으로만 본 결과라 양감·공간감 평가에 한계가 있어요." : ""}</p>
       <button className="btn line block" onClick={analyze} disabled={busy}>{busy ? <span className="spinner" /> : "다시 분석하기"}</button>
-    </> : <div className="card"><b>아직 분석 전이에요</b><span className="small muted">구도·형태·명암·색채·완성도·발상 6개 항목으로 점수와 코멘트를 드려요. (현재 데모 분석 · Claude 분석은 다음 업데이트)</span>
+    </> : <div className="card"><b>아직 분석 전이에요</b><span className="small muted">{views ? "앞·뒤·좌·우 4면을 각각 보고 평균 내요. " : ""}구도·형태·명암·색채·완성도·발상 6개 항목으로 점수와 코멘트를 드려요. (현재 데모 분석 · Claude 분석은 다음 업데이트)</span>
       <button className="btn block" onClick={analyze} disabled={busy}>{busy ? <><span className="spinner" /> 분석 중…</> : "AI 진단 받기"}</button></div>}
     {err && <div className="err" role="alert">{err}</div>}
     <button className="btn line block" onClick={del}>{confirmDel ? "한 번 더 누르면 삭제됩니다" : "이 작품 삭제"}</button>
@@ -310,11 +344,20 @@ function Me({ user, profile, isNew, awards, reload, onSignOut }: { user: AuthUse
       <button className="btn block" type="submit" disabled={busy}>{busy ? <span className="spinner" /> : isNew ? "프로필 저장하고 시작하기" : "저장"}</button>
     </form>
     {!isNew && <div className="card"><b>수상 경력</b>
-      <div className="awards">{awards.length ? awards.map((a) => <div className="award" key={a.id}><span>{a.title}{a.level ? <span className="tiny"> · {a.level.split("|")[0]}</span> : null}{a.verified ? " ✓" : ""}</span><button onClick={async () => { await S.deleteAward(a.id); await reload(); }} aria-label={`${a.title} 삭제`}>삭제</button></div>) : <span className="small muted">아직 없어요.</span>}</div>
+      <div className="awards">{awards.length ? awards.map((a) => { const b = benefitFor(a.title); return <div className="award" key={a.id}><span>{a.title}{a.level ? <span className="tiny"> · {a.level.split("|")[0]}</span> : null}{a.verified ? " ✓" : ""}{b ? <span className="tiny benefit-hit"><br />입시특전 연결: {b.univ} · {b.benefit}{b.status === "확인 필요" ? " (편집부 확인 필요)" : ""}</span> : null}</span><button onClick={async () => { await S.deleteAward(a.id); await reload(); }} aria-label={`${a.title} 삭제`}>삭제</button></div>; }) : <span className="small muted">아직 없어요.</span>}</div>
       <form className="card" style={{ padding: 0, border: 0 }} onSubmit={addAw}><label className="f"><span className="tiny">대회명 · 연월</span><input id="aw-in" value={aw} onChange={(e) => setAw(e.target.value)} placeholder="예: 전국 미술실기대회 (2026.08)" /></label>
         <div className="grid2"><label className="f"><span className="tiny">상</span><select value={lv} onChange={(e) => setLv(e.target.value)}>{LEVELS.map((x) => <option key={x}>{x}</option>)}</select></label><label className="f"><span className="tiny">규모</span><select value={sc} onChange={(e) => setSc(e.target.value)}>{SCOPES.map((x) => <option key={x}>{x}</option>)}</select></label></div>
         <button className="btn line" type="submit">수상 추가</button></form>
       <span className="tiny">교외 수상은 학생부에 기재되지 않아 대입에 직접 반영되지 않아요. 앱은 실기 실력 추정에만 써요. 「미대입시」 주최 대회 수상은 앞으로 자동 인증됩니다.</span></div>}
+    {!isNew && <div className="card"><b>대학 실기대회 수상 시 본교 입시특전</b>
+      <span className="small muted">대학이 직접 여는 실기대회는 그 대학에 지원할 때 가산점·우선입학·장학금 등 혜택을 주기도 해요. 대회명에 대학 이름을 넣어 수상을 추가하면 위에 특전이 연결돼요.</span>
+      <div className="benefits">{BENEFITS.map((b) => <div key={b.univ} className="benefit">
+        <div className="row between"><b className="small">{b.univ}</b><span className={`chip ${b.status === "확인" ? "t-fit" : "t-hope"}`}>{b.status === "확인" ? "확인" : "편집부 확인 필요"}</span></div>
+        <span className="tiny">{b.contest}</span>
+        <span className="small">{b.benefit}</span>
+        <span className="tiny">{b.basis}{b.source ? <> · 출처 <a href={b.source.url} target="_blank" rel="noopener">{b.source.name}</a></> : null}</span>
+      </div>)}</div>
+      <span className="tiny">특전은 해마다 바뀌어요. 지원 전 반드시 해당 대학의 당해 모집요강과 대회 공고를 확인하세요. 특전 정보는 「월간 미대입시」 편집부가 계속 보완합니다.</span></div>}
     <button className="btn line block" onClick={onSignOut}>로그아웃</button>
     <p className="tiny">버전 {APP_VERSION}</p>
   </>;
