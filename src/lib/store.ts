@@ -7,6 +7,7 @@ export interface Profile {
   name: string; grade: "고1" | "고2" | "고3" | "N수"; gpa: number; mock: number; major: string;
   regions: string[]; academyStart: string; /* YYYY-MM */ guardianConsent: boolean;
   mockKnown: boolean; school: string; schoolType: string;
+  track: string; field: string; // 계열·분야 (5계열 21분야)
 }
 export interface Award { id: string; title: string; level?: string; awardedOn?: string; verified?: boolean }
 export interface Analysis { scores: Record<string, number | null>; strengths: string[]; improvements: string[]; comment: string; nextTask?: string; model?: string }
@@ -14,12 +15,17 @@ export interface ArtView { key: string; label: string; url: string; path: string
 // views: 조형·공예 계열 입체 작품의 앞·뒤·좌·우 4면 사진 (url·path는 앞면)
 export interface Artwork { id: string; url: string; path: string; genre: string; title?: string; madeOn: string; analysis?: Analysis | null; views?: ArtView[] }
 
-export const DEFAULT_PROFILE: Profile = { name: "", grade: "고2", gpa: 3, mock: 60, major: "시각디자인", regions: ["서울", "경기"], academyStart: "", guardianConsent: false, mockKnown: false, school: "", schoolType: "일반고" };
+export const DEFAULT_PROFILE: Profile = { name: "", grade: "고2", gpa: 3, mock: 60, major: "시각디자인", regions: ["서울", "경기"], academyStart: "", guardianConsent: false, mockKnown: false, school: "", schoolType: "일반고", track: "디자인 계열", field: "기초디자인" };
 
 export const isDemo = !(SUPABASE_URL && SUPABASE_ANON_KEY);
 export const sb: SupabaseClient | null = isDemo ? null : createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const gpaSystemOf = (g: Profile["grade"]) => (g === "고3" || g === "N수" ? "9등급" : "5등급");
+
+// ---------- 이 기기 저장 (사용자별) — 플래너·체크리스트·첨삭 신청처럼 서버 테이블이 아직 없는 기능 ----------
+export const ukey = (u: AuthUser, name: string) => `midae-${name}:${u.id}`;
+export function uget<T>(u: AuthUser, name: string, fallback: T): T { try { const v = localStorage.getItem(ukey(u, name)); return v ? (JSON.parse(v) as T) : fallback; } catch { return fallback; } }
+export function uset<T>(u: AuthUser, name: string, v: T) { try { localStorage.setItem(ukey(u, name), JSON.stringify(v)); } catch { /* 저장 공간 부족 등 */ } }
 
 // ---------- 데모(로컬) 저장 ----------
 const LK = "midae-navi-demo-v1";
@@ -79,14 +85,20 @@ export async function loadProfile(u: AuthUser): Promise<Profile | null> {
     if (!data) return null;
     return { name: data.name || "", grade: data.grade || "고2", gpa: Number(data.gpa ?? 3), mock: Number(data.mock_pct ?? 60), major: data.major || "시각디자인",
       regions: data.regions || [], academyStart: data.academy_start ? String(data.academy_start).slice(0, 7) : "", guardianConsent: !!data.guardian_consent,
-      mockKnown: data.mock_pct != null, school: data.school || "", schoolType: data.school_type || "일반고" };
+      mockKnown: data.mock_pct != null, school: data.school || "", schoolType: data.school_type || "일반고",
+      track: data.track || extra(u).track || DEFAULT_PROFILE.track, field: data.field || extra(u).field || DEFAULT_PROFILE.field };
   }
   const lp = lread().profile; return lp ? { ...DEFAULT_PROFILE, ...lp } : null;
 }
+// 계열·분야는 v0.9 열(track·field). migrate_v0.9.sql 실행 전 DB면 열 없이 저장하고 이 기기에 따로 보관
+const extra = (u: AuthUser) => uget<{ track?: string; field?: string }>(u, "profile-extra", {});
 export async function saveProfile(u: AuthUser, p: Profile): Promise<void> {
   if (sb) {
-    const { error } = await sb.from("profiles").upsert({ user_id: u.id, name: p.name, grade: p.grade, gpa: p.gpa, gpa_system: gpaSystemOf(p.grade), mock_pct: p.mockKnown ? p.mock : null, school: p.school, school_type: p.schoolType,
-      major: p.major, regions: p.regions, academy_start: p.academyStart ? p.academyStart + "-01" : null, guardian_consent: p.guardianConsent, updated_at: new Date().toISOString() });
+    uset(u, "profile-extra", { track: p.track, field: p.field });
+    const row = { user_id: u.id, name: p.name, grade: p.grade, gpa: p.gpa, gpa_system: gpaSystemOf(p.grade), mock_pct: p.mockKnown ? p.mock : null, school: p.school, school_type: p.schoolType,
+      major: p.major, regions: p.regions, academy_start: p.academyStart ? p.academyStart + "-01" : null, guardian_consent: p.guardianConsent, updated_at: new Date().toISOString() };
+    let { error } = await sb.from("profiles").upsert({ ...row, track: p.track, field: p.field });
+    if (error && /track|field|column/i.test(error.message)) ({ error } = await sb.from("profiles").upsert(row));
     if (error) throw new Error("프로필을 저장하지 못했어요: " + error.message);
     return;
   }
