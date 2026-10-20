@@ -136,12 +136,12 @@ label.f input:focus,label.f select:focus{outline:2px solid var(--accent);outline
 .install-bar .btn{padding:8px 14px;min-height:0;font-size:13.5px;flex:none;width:auto;text-decoration:none;white-space:nowrap}
 .install-bar .x{background:none;border:0;font-size:22px;line-height:1;color:#9aa0ad;padding:4px 6px;cursor:pointer;flex:none}
 
-/* 로그인 화면 명화 배경 — 힐마 아프 클린트 〈10점의 가장 큰 그림 No.3, 청년기〉 1907 (퍼블릭 도메인) · 천천히 다가가는 움직임 */
-.auth .hero{position:relative;margin:0 -20px 4px;height:min(62vh,560px);min-height:360px;background:#C8541E;display:flex;align-items:flex-end;overflow:hidden;isolation:isolate}
-.auth .hero .art{position:absolute;inset:-2%;background:url(./assets/hero-afklint-youth.jpg) 50% 30%/cover no-repeat;z-index:-1;animation:heroDrift 24s ease-in-out infinite alternate}
-@keyframes heroDrift{from{transform:scale(1) translate(0,0)}to{transform:scale(1.12) translate(-2%,3%)}}
+/* 로그인 화면 명화 배경 — 레오나르도 다빈치 〈모나리자〉 (퍼블릭 도메인) · 천천히 다가가는 움직임 */
+.auth .hero{position:relative;margin:0 -20px 4px;height:min(62vh,560px);min-height:360px;background:#2B2416;display:flex;align-items:flex-end;overflow:hidden;isolation:isolate}
+.auth .hero .art{position:absolute;inset:-2%;background:url(./assets/hero-mona-lisa.jpg) 50% 12%/cover no-repeat;z-index:-1;animation:heroDrift 24s ease-in-out infinite alternate}
+@keyframes heroDrift{from{transform:scale(1) translate(0,0)}to{transform:scale(1.1) translate(0,2%)}}
 @media (prefers-reduced-motion:reduce){.auth .hero .art{animation:none}}
-.auth .hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,10,30,0) 0%,rgba(20,10,30,0) 42%,rgba(28,12,40,.62) 74%,rgba(20,8,32,.9) 100%)}
+.auth .hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,14,6,0) 0%,rgba(20,14,6,0) 48%,rgba(20,14,6,.6) 74%,rgba(14,10,4,.9) 100%)}
 .auth .hero-txt{position:relative;color:#fff;padding:0 22px 30px}
 .auth .hero .kicker{font-size:11px;letter-spacing:.16em;opacity:.85}
 .auth .hero .logo{font-size:44px;line-height:1.1;margin-top:8px;letter-spacing:-.02em;text-shadow:0 2px 16px rgba(0,0,0,.25)}

@@ -45,10 +45,10 @@ function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
   async function reset() { setErr(""); setMsg(""); if (!email) { setErr("이메일을 먼저 입력해 주세요."); return; } try { await S.resetPassword(email.trim()); setMsg("비밀번호 재설정 메일을 보냈어요."); } catch (x) { setErr((x as Error).message); } }
   return (
     <form className="auth" onSubmit={submit}>
-      <div className="hero" role="img" aria-label="힐마 아프 클린트, 10점의 가장 큰 그림 3번 청년기 부분">
+      <div className="hero" role="img" aria-label="레오나르도 다빈치, 모나리자">
         <div className="art" aria-hidden="true" />
         <div className="hero-txt"><span className="kicker">MONTHLY MIDAE IPSI · SINCE 1988</span><div className="logo">미대갈래</div><p>38년 미대 입시 데이터로 찾는<br />나의 미대 입시 길</p></div>
-        <span className="credit">힐마 아프 클린트 〈10점의 가장 큰 그림 No.3, 청년기〉 1907</span>
+        <span className="credit">레오나르도 다빈치 〈모나리자〉 1503–1519년경 · 루브르 박물관</span>
       </div>
       <div className="seg" role="group"><button type="button" aria-pressed={mode === "in"} onClick={() => setMode("in")}>로그인</button><button type="button" aria-pressed={mode === "up"} onClick={() => setMode("up")}>회원가입</button></div>
       <label className="f">이메일<input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
