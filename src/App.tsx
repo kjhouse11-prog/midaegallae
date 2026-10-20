@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { DRILL, FIELD_GROUPS, FIELDS, MAJORS, MAJOR_TRACK, REGIONS, REGION_GROUPS, SOLID_VIEWS, TRACKS, fieldGroup, fieldsOf, isSolidField } from "./lib/data";
 import { AcademyTab, Planner, useWeek, weekDone, type AcadSub, type PlanSub } from "./features";
-import { dayDiff, upcoming } from "./lib/planner";
+import { dayDiff, nextEvent } from "./lib/planner";
 import { BENEFITS, benefitFor } from "./lib/benefits";
 import * as S from "./lib/store";
 import type { Artwork, Award, AuthUser, Profile } from "./lib/store";
@@ -45,9 +45,10 @@ function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
   async function reset() { setErr(""); setMsg(""); if (!email) { setErr("이메일을 먼저 입력해 주세요."); return; } try { await S.resetPassword(email.trim()); setMsg("비밀번호 재설정 메일을 보냈어요."); } catch (x) { setErr((x as Error).message); } }
   return (
     <form className="auth" onSubmit={submit}>
-      <div className="hero" role="img" aria-label="산드로 보티첼리, 비너스의 탄생 부분">
+      <div className="hero" role="img" aria-label="힐마 아프 클린트, 10점의 가장 큰 그림 3번 청년기 부분">
+        <div className="art" aria-hidden="true" />
         <div className="hero-txt"><span className="kicker">MONTHLY MIDAE IPSI · SINCE 1988</span><div className="logo">미대갈래</div><p>38년 미대 입시 데이터로 찾는<br />나의 미대 입시 길</p></div>
-        <span className="credit">보티첼리 〈비너스의 탄생〉 1485년경 · 우피치 미술관</span>
+        <span className="credit">힐마 아프 클린트 〈10점의 가장 큰 그림 No.3, 청년기〉 1907</span>
       </div>
       <div className="seg" role="group"><button type="button" aria-pressed={mode === "in"} onClick={() => setMode("in")}>로그인</button><button type="button" aria-pressed={mode === "up"} onClick={() => setMode("up")}>회원가입</button></div>
       <label className="f">이메일<input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
@@ -120,7 +121,7 @@ function DataBadge({ j }: { j: Judgement }) { return <span className="badge">{j.
 
 // ---------------- 홈 ----------------
 function Home({ user, ctx, target, go, open }: { user: AuthUser; ctx: Ctx; target?: Program; go: (t: Tab, sub?: string) => void; open: (id: string) => void }) {
-  const [week, setWeek] = useWeek(user); const next = upcoming(NOW)[0];
+  const [week, setWeek] = useWeek(user); const next = nextEvent(NOW);
   const st = toStudent(ctx); const P = practicalIndex(st); const sys = gpaSystem(ctx.p);
   const pool = recommend(PROGRAMS, st).filter((x) => majorMatch(x.p, ctx.p.major));
   const cnt = Object.fromEntries(VERDICTS.map((v) => [v, pool.filter((x) => x.j.verdict === v).length])) as Record<Verdict, number>;

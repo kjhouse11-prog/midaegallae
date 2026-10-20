@@ -5,7 +5,7 @@ import type { AuthUser, Profile } from "./lib/store";
 import * as S from "./lib/store";
 import { ACADEMIES, ACADEMY_CHECKLIST, ACADEMY_SOURCES, fitAcademy, type AcademyPref } from "./lib/academies";
 import { CRITIQUES, won, type CritiqueReq } from "./lib/critique";
-import { GRADE_ROADMAP, SCHEDULE_2027, SCHEDULE_SOURCE, WEEKDAYS, dayDiff, defaultSettings, makeWeek, upcoming, weekStart, type Direction, type PlanSettings, type Task, type Week } from "./lib/planner";
+import { GRADE_ROADMAP, SCHEDULE_2027, SCHEDULE_SOURCE, WEEKDAYS, dayDiff, defaultSettings, makeWeek, nextEvent, weekStart, type Direction, type PlanSettings, type Task, type Week } from "./lib/planner";
 import { NOW, gpaSystem, weakest, type Ctx } from "./lib/calc";
 import { toGpa9, type Program } from "./lib/engine";
 import { NumInput } from "./ui";
@@ -44,7 +44,7 @@ function PlanSetup({ user, ctx, target, go, toWeek }: { user: AuthUser; ctx: Ctx
   const [week] = useWeek(user);
   const set = <K extends keyof PlanSettings>(k: K, v: PlanSettings[K]) => { setS((x) => ({ ...x, [k]: v })); setMsg(""); };
   const prac = Math.round(s.weeklyHours * s.practicalPct / 10) / 10, study = Math.round((s.weeklyHours - prac) * 10) / 10;
-  const next = upcoming(NOW)[0]; const sys = gpaSystem(ctx.p);
+  const next = nextEvent(NOW); const sys = gpaSystem(ctx.p);
   const save = () => { S.uset(user, "plan", s); setMsg("목표를 저장했어요. '주간 체크'에서 맞춤 계획을 만들어 보세요."); };
   return <>
     <p className="lead">학년·계열·분야·주간 시간에 맞춰 <b>연습 계획 예시</b>를 만들어요. 합격 가능성 판정은 '대학찾기', 대학별 일정은 각 대학 모집요강을 함께 확인하세요.</p>

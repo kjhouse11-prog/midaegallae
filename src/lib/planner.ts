@@ -22,6 +22,8 @@ export const SCHEDULE_2027: Ev[] = [
 ];
 export const dayDiff = (iso: string, now: Date) => Math.ceil((new Date(iso + "T00:00:00").getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 864e5);
 export const upcoming = (now: Date) => SCHEDULE_2027.filter((e) => dayDiff(e.end || e.start, now) >= 0);
+// 아직 시작하지 않은 다음 일정 (D-day 표시용)
+export const nextEvent = (now: Date) => SCHEDULE_2027.find((e) => dayDiff(e.start, now) >= 0);
 
 // ---------- 학년별 연간 준비 흐름 (미술 입시생 기준) ----------
 export const GRADE_ROADMAP: Record<string, { when: string; what: string }[]> = {
@@ -108,7 +110,7 @@ export function makeWeek(o: { s: PlanSettings; field: string; grade: string; wea
   study.forEach((t, k) => tasks.push({ id: `s${k}`, text: t, cat: "내신·수능", day: sd[k % Math.max(1, sd.length)] || "일", min: sper, done: false }));
   tasks.push({ id: "w0", text: "이번 주 완성작 사진 올리고 AI 진단 받기", cat: "작품관리", day: "일", min: 15, done: false });
   // 다가오는 입시 일정 (4주 안)
-  const ev = upcoming(o.now).find((e) => dayDiff(e.start, o.now) <= 28);
+  const ev = SCHEDULE_2027.find((e) => dayDiff(e.start, o.now) >= 0 && dayDiff(e.start, o.now) <= 28);
   if (ev && (o.grade === "고3" || o.grade === "N수")) tasks.push({ id: "e0", text: `D-${Math.max(0, dayDiff(ev.start, o.now))} ${ev.label} 준비 (대학별 일정·준비물 확인)`, cat: "입시정보", day: "월", min: 20, done: false });
   else tasks.push({ id: "e0", text: "「미대입시」 합격수기 1편 읽고 내 계획과 비교", cat: "입시정보", day: "일", min: 20, done: false });
   return { start: weekStart(o.now), tasks: tasks.sort((a, b) => WEEKDAYS.indexOf(a.day) - WEEKDAYS.indexOf(b.day)) };
