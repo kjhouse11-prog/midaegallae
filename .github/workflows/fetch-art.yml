@@ -26,12 +26,8 @@ jobs:
               sleep 1
             done < /tmp/r.tsv
           }
-          pick kandinsky7 "Kandinsky Composition VII 1913 Tretyakov"
-          pick afklint7 "Hilma af Klint Ten Largest No. 7 Adulthood"
-          pick afklint3 "Hilma af Klint Ten Largest No. 3 Youth"
-          pick klimtkiss "Gustav Klimt The Kiss Belvedere"
-          pick starry "Van Gogh Starry Night Google Art Project"
-          pick delaunay "Robert Delaunay Rythme"
+          pick monalisa "Mona Lisa by Leonardo da Vinci from C2RMF retouched"
+          pick vitruvian "Da Vinci Vitruve Luc Viatour"
           cat art-src/candidates/list.txt
       - run: |
           git config user.name "github-actions[bot]"; git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
