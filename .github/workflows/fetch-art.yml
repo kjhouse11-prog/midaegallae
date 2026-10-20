@@ -1,4 +1,5 @@
 # 공공 저작물(퍼블릭 도메인) 명화를 위키미디어에서 받아 저장소 art-src/ 에 저장합니다. 필요할 때 수동 실행.
+# 검색어마다 위키미디어 공용 파일 검색 상위 2개를 받아 후보로 저장 (art-src/candidates/), 파일 제목은 art-src/candidates/list.txt
 name: Fetch public-domain art
 on: workflow_dispatch
 permissions:
@@ -9,10 +10,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          mkdir -p art-src
-          UA="midaegallae-build/0.5 (https://github.com/kjhouse11-prog/midaegallae)"
-          get() { curl -fsSL -A "$UA" "https://commons.wikimedia.org/wiki/Special:FilePath/$2?width=${3:-1800}" -o "art-src/$1" && ls -la "art-src/$1"; }
-          get botticelli-venus-4000.jpg "Sandro_Botticelli_-_La_nascita_di_Venere_-_Google_Art_Project_-_edited.jpg" 4000
+          mkdir -p art-src/candidates
+          UA="midaegallae-build/0.9 (https://github.com/kjhouse11-prog/midaegallae)"
+          API="https://commons.wikimedia.org/w/api.php"
+          pick() {
+            slug="$1"; q="$2"
+            curl -fsSL -A "$UA" -G "$API" --data-urlencode "action=query" --data-urlencode "format=json" --data-urlencode "generator=search" \
+              --data-urlencode "gsrnamespace=6" --data-urlencode "gsrlimit=2" --data-urlencode "gsrsearch=$q" \
+              --data-urlencode "prop=imageinfo" --data-urlencode "iiprop=url|size|extmetadata" --data-urlencode "iiurlwidth=2400" -o /tmp/r.json || return 0
+            jq -r '.query.pages // {} | to_entries | sort_by(.value.index) | .[] | [.value.title, (.value.imageinfo[0].thumburl // .value.imageinfo[0].url), (.value.imageinfo[0].extmetadata.LicenseShortName.value // "")] | @tsv' /tmp/r.json > /tmp/r.tsv
+            n=0
+            while IFS=$'\t' read -r title url lic; do
+              n=$((n+1)); f="art-src/candidates/${slug}-${n}.jpg"
+              curl -fsSL -A "$UA" "$url" -o "$f" && echo -e "${slug}-${n}.jpg\t${title}\t${lic}\t${url}" >> art-src/candidates/list.txt
+              sleep 1
+            done < /tmp/r.tsv
+          }
+          pick kandinsky7 "Kandinsky Composition VII 1913 Tretyakov"
+          pick afklint7 "Hilma af Klint Ten Largest No. 7 Adulthood"
+          pick afklint3 "Hilma af Klint Ten Largest No. 3 Youth"
+          pick klimtkiss "Gustav Klimt The Kiss Belvedere"
+          pick starry "Van Gogh Starry Night Google Art Project"
+          pick delaunay "Robert Delaunay Rythme"
+          cat art-src/candidates/list.txt
       - run: |
           git config user.name "github-actions[bot]"; git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add art-src && git commit -m "명화 원본 받기 (퍼블릭 도메인, 위키미디어 공용)" && git push
+          git add art-src && git commit -m "명화 후보 받기 (퍼블릭 도메인, 위키미디어 공용)" && git push
