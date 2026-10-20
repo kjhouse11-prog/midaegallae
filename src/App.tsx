@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { DRILL, FIELD_GROUPS, FIELDS, MAJORS, SOLID_VIEWS, fieldGroup, isSolidField } from "./lib/data";
+import { DRILL, FIELD_GROUPS, FIELDS, MAJORS, MAJOR_TRACK, REGIONS, REGION_GROUPS, SOLID_VIEWS, TRACKS, fieldGroup, fieldsOf, isSolidField } from "./lib/data";
+import { AcademyTab, Planner, useWeek, weekDone, type AcadSub, type PlanSub } from "./features";
+import { dayDiff, nextEvent } from "./lib/planner";
 import { BENEFITS, benefitFor } from "./lib/benefits";
 import * as S from "./lib/store";
 import type { Artwork, Award, AuthUser, Profile } from "./lib/store";
@@ -13,7 +15,7 @@ const PROGRAMS = DATA.programs as Program[];
 setUniverse(PROGRAMS);
 const byId = (id: string) => PROGRAMS.find((p) => p.id === id);
 const fullName = (p: Program) => `${p.univ}${p.campus ? `(${p.campus})` : ""}`;
-type Tab = "home" | "works" | "match" | "road" | "me";
+type Tab = "home" | "works" | "match" | "plan" | "acad" | "me";
 const TARGET_KEY = "midae-navi-target-v4";
 const VERDICTS: Verdict[] = ["안정", "적정", "소신", "상향"];
 
@@ -43,9 +45,10 @@ function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
   async function reset() { setErr(""); setMsg(""); if (!email) { setErr("이메일을 먼저 입력해 주세요."); return; } try { await S.resetPassword(email.trim()); setMsg("비밀번호 재설정 메일을 보냈어요."); } catch (x) { setErr((x as Error).message); } }
   return (
     <form className="auth" onSubmit={submit}>
-      <div className="hero" role="img" aria-label="산드로 보티첼리, 비너스의 탄생 부분">
+      <div className="hero" role="img" aria-label="힐마 아프 클린트, 10점의 가장 큰 그림 3번 청년기 부분">
+        <div className="art" aria-hidden="true" />
         <div className="hero-txt"><span className="kicker">MONTHLY MIDAE IPSI · SINCE 1988</span><div className="logo">미대갈래</div><p>38년 미대 입시 데이터로 찾는<br />나의 미대 입시 길</p></div>
-        <span className="credit">보티첼리 〈비너스의 탄생〉 1485년경 · 우피치 미술관</span>
+        <span className="credit">힐마 아프 클린트 〈10점의 가장 큰 그림 No.3, 청년기〉 1907</span>
       </div>
       <div className="seg" role="group"><button type="button" aria-pressed={mode === "in"} onClick={() => setMode("in")}>로그인</button><button type="button" aria-pressed={mode === "up"} onClick={() => setMode("up")}>회원가입</button></div>
       <label className="f">이메일<input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
@@ -73,6 +76,7 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const [target, setTargetState] = useState<string>(() => { try { return localStorage.getItem(TARGET_KEY) || ""; } catch { return ""; } });
   const [detail, setDetail] = useState<string | null>(null);
   const [workDetail, setWorkDetail] = useState<string | null>(null);
+  const [planSub, setPlanSub] = useState<PlanSub>("plan"), [acadSub, setAcadSub] = useState<AcadSub>("find");
   const setTarget = (id: string) => { setTargetState(id); try { localStorage.setItem(TARGET_KEY, id); } catch { /* */ } };
 
   const reload = useCallback(async () => {
@@ -80,7 +84,10 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
     catch (x) { setErr((x as Error).message); } finally { setLoading(false); }
   }, [user]);
   useEffect(() => { reload(); }, [reload]);
-  const go = (t: Tab) => { setTab(t); setDetail(null); setWorkDetail(null); window.scrollTo(0, 0); };
+  const go = (t: Tab, sub?: string) => {
+    setTab(t); setDetail(null); setWorkDetail(null); window.scrollTo(0, 0);
+    if (t === "plan" && sub) setPlanSub(sub as PlanSub); if (t === "acad" && sub) setAcadSub(sub as AcadSub);
+  };
   const open = (id: string) => { setTab("match"); setDetail(id); window.scrollTo(0, 0); };
 
   if (loading) return <div className="loading">불러오는 중…</div>;
@@ -88,17 +95,18 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const p = profile || S.DEFAULT_PROFILE; const ctx: Ctx = { p, works, awards };
   const tp = target ? byId(target) : undefined;
   const view = needProfile && tab !== "me" ? <Onboard go={() => go("me")} /> :
-    tab === "home" ? <Home ctx={ctx} target={tp} go={go} open={open} /> :
-    tab === "works" ? <Works user={user} works={works} reload={reload} detail={workDetail} setDetail={setWorkDetail} /> :
+    tab === "home" ? <Home user={user} ctx={ctx} target={tp} go={go} open={open} /> :
+    tab === "works" ? <Works user={user} works={works} reload={reload} detail={workDetail} setDetail={setWorkDetail} defaultField={p.field} /> :
     tab === "match" ? (detail && byId(detail) ? <ProgramView u={byId(detail)!} ctx={ctx} back={() => setDetail(null)} target={target} setTarget={setTarget} /> : <Match ctx={ctx} open={open} />) :
-    tab === "road" ? <Road ctx={ctx} u={tp} go={go} /> :
+    tab === "plan" ? <Planner user={user} ctx={ctx} target={tp} road={<Road ctx={ctx} u={tp} go={go} />} sub={planSub} setSub={setPlanSub} go={(t) => go(t as Tab)} /> :
+    tab === "acad" ? <AcademyTab user={user} p={p} works={works} sub={acadSub} setSub={setAcadSub} go={(t) => go(t as Tab)} /> :
     <Me user={user} profile={p} isNew={needProfile} awards={awards} reload={reload} onSignOut={onSignOut} />;
   return (
     <>
       <header className="top"><div className="brand"><b>미대갈래</b><span>by 월간 미대입시</span></div><span className="pill">베타 v{APP_VERSION}</span></header>
       <main id="view">{err && <div className="notice" role="alert">{err}</div>}{view}<AdBanner /></main>
       <nav className="tabs" aria-label="주요 메뉴">
-        {([["home", "홈"], ["works", "내 작품"], ["match", "대학찾기"], ["road", "로드맵"], ["me", "마이"]] as [Tab, string][]).map(([k, t]) =>
+        {([["home", "홈"], ["works", "내 작품"], ["match", "대학찾기"], ["plan", "플래너"], ["acad", "학원"], ["me", "마이"]] as [Tab, string][]).map(([k, t]) =>
           <button key={k} aria-current={tab === k ? "page" : undefined} onClick={() => go(k)}><Icon name={k} />{t}</button>)}
       </nav>
     </>
@@ -112,7 +120,8 @@ function Onboard({ go }: { go: () => void }) {
 function DataBadge({ j }: { j: Judgement }) { return <span className="badge">{j.data}</span>; }
 
 // ---------------- 홈 ----------------
-function Home({ ctx, target, go, open }: { ctx: Ctx; target?: Program; go: (t: Tab) => void; open: (id: string) => void }) {
+function Home({ user, ctx, target, go, open }: { user: AuthUser; ctx: Ctx; target?: Program; go: (t: Tab, sub?: string) => void; open: (id: string) => void }) {
+  const [week, setWeek] = useWeek(user); const next = nextEvent(NOW);
   const st = toStudent(ctx); const P = practicalIndex(st); const sys = gpaSystem(ctx.p);
   const pool = recommend(PROGRAMS, st).filter((x) => majorMatch(x.p, ctx.p.major));
   const cnt = Object.fromEntries(VERDICTS.map((v) => [v, pool.filter((x) => x.j.verdict === v).length])) as Record<Verdict, number>;
@@ -132,15 +141,24 @@ function Home({ ctx, target, go, open }: { ctx: Ctx; target?: Program; go: (t: T
     {target && tj && <><h2 className="sec">목표 대학</h2>
       <button className="card-btn" onClick={() => open(target.id)}><div className="card"><div className="row between"><b>{fullName(target)} {target.dept}</b><span className={`chip ${VERDICT_STYLE[tj.verdict].c}`}>{tj.verdict}</span></div>
         <div className="small muted">{target.track} · 실기까지 약 <b className="num">D-{left}</b> (예상)</div></div></button></>}
+    <div className="quick4">
+      <button onClick={() => go("acad", "find")}><span className="qi">🏫</span>나에게 맞는<br />학원 찾기</button>
+      <button onClick={() => go("plan", "plan")}><span className="qi">🎯</span>개인 맞춤<br />입시 플래너</button>
+      <button onClick={() => go("plan", "week")}><span className="qi">✅</span>주간 체크<br /><b className="num">{weekDone(week)}</b></button>
+      <button onClick={() => go("acad", "crit")}><span className="qi">✏️</span>첨삭<br />비용 예시</button>
+    </div>
+    {next && <button className="card-btn" onClick={() => go("plan", "cal")}><div className="card row between"><span className="small"><b>다음 입시 일정</b><br /><span className="muted">{next.label}</span></span><b className="num" style={{ fontSize: 22, color: "var(--accent)" }}>{dayDiff(next.start, NOW) <= 0 ? "진행 중" : `D-${dayDiff(next.start, NOW)}`}</b></div></button>}
     <h2 className="sec">이번 주 할 일</h2>
-    <div className="card"><ul className="list small">{weekTasks(ctx, target, tj).map((t) => <li key={t}>{t}</li>)}</ul></div>
+    {week && week.tasks.length ? <div className="card"><ul className="checks">{week.tasks.filter((t) => !t.done).slice(0, 4).map((t) => <li key={t.id}><label><input type="checkbox" onChange={() => setWeek({ ...week, tasks: week.tasks.map((x) => (x.id === t.id ? { ...x, done: true } : x)) })} /><span className="dw">{t.day}</span><span className="tx small">{t.text}</span></label></li>)}</ul>
+      <button className="linkbtn" onClick={() => go("plan", "week")}>주간 체크리스트 전체 보기 ({weekDone(week)}) →</button></div>
+      : <div className="card"><ul className="list small">{weekTasks(ctx, target, tj).map((t) => <li key={t}>{t}</li>)}</ul><button className="linkbtn" onClick={() => go("plan", "week")}>나만의 주간 체크리스트 만들기 →</button></div>}
     {!ctx.works.length && <button className="drop" onClick={() => go("works")}><b>첫 작품을 올려보세요</b><br /><span className="small">작품 진단 점수가 들어가면 실기 지수가 '추정'에서 '실측'으로 바뀌어 판정이 정확해져요</span></button>}
   </>;
 }
 
 // ---------------- 내 작품 ----------------
-function Works({ user, works, reload, detail, setDetail }: { user: AuthUser; works: Artwork[]; reload: () => Promise<void>; detail: string | null; setDetail: (id: string | null) => void }) {
-  const [field, setField] = useState<string>(FIELDS[0]); const [busy, setBusy] = useState(""), [err, setErr] = useState(""); const [over, setOver] = useState(false);
+function Works({ user, works, reload, detail, setDetail, defaultField }: { user: AuthUser; works: Artwork[]; reload: () => Promise<void>; detail: string | null; setDetail: (id: string | null) => void; defaultField: string }) {
+  const [field, setField] = useState<string>(FIELDS.includes(defaultField) ? defaultField : FIELDS[0]); const [busy, setBusy] = useState(""), [err, setErr] = useState(""); const [over, setOver] = useState(false);
   const [sides, setSides] = useState<(File | null)[]>(() => SOLID_VIEWS.map(() => null));
   const fileRef = useRef<HTMLInputElement>(null);
   const solid = isSolidField(field);
@@ -222,12 +240,12 @@ function WorkView({ w, back, reload }: { w: Artwork; back: () => void; reload: (
 
 // ---------------- 대학찾기: 추천 리스트 / 학과 판정 ----------------
 const TT: [string, string, string[]][] = [["all", "전체", []], ["susi", "수시 실기", ["수시실기일괄", "수시실기다단계"]], ["hak", "수시 학종", ["수시학종"]], ["jung", "정시", ["정시실기", "정시비실기"]]];
-const AREA: Record<string, string[]> = { 전국: [], 서울: ["서울"], "경기·인천": ["경기", "인천"], 지방: ["강원", "대전", "세종", "충북", "충남", "광주", "전북", "전남", "대구", "경북", "부산", "울산", "경남", "제주"] };
+const AREA: Record<string, string[]> = { "선호 지역": [], 전국: [], 서울: ["서울"], "경기·인천": ["경기", "인천"], 지방: ["강원", "대전", "세종", "충북", "충남", "광주", "전북", "전남", "대구", "경북", "부산", "울산", "경남", "제주"] };
 function Match({ ctx, open }: { ctx: Ctx; open: (id: string) => void }) {
   const [mode, setMode] = useState<"list" | "one">("list");
-  const [tt, setTt] = useState("all"), [area, setArea] = useState("전국"), [mine, setMine] = useState(true), [vf, setVf] = useState<"전체" | Verdict>("전체");
+  const [tt, setTt] = useState("all"), [area, setArea] = useState(ctx.p.regions.length ? "선호 지역" : "전국"), [mine, setMine] = useState(true), [vf, setVf] = useState<"전체" | Verdict>("전체");
   const st = useMemo(() => toStudent(ctx), [ctx]);
-  const all = useMemo(() => recommend(PROGRAMS, st, { ttypes: TT.find((x) => x[0] === tt)![2], regions: AREA[area] }).filter((x) => !mine || majorMatch(x.p, ctx.p.major)), [st, tt, area, mine, ctx.p.major]);
+  const all = useMemo(() => recommend(PROGRAMS, st, { ttypes: TT.find((x) => x[0] === tt)![2], regions: area === "선호 지역" ? ctx.p.regions : AREA[area] }).filter((x) => !mine || majorMatch(x.p, ctx.p.major)), [st, tt, area, mine, ctx.p.major]);
   const list = vf === "전체" ? all : all.filter((x) => x.j.verdict === vf);
   return <>
     <h1 className="page">대학찾기</h1>
@@ -236,7 +254,7 @@ function Match({ ctx, open }: { ctx: Ctx; open: (id: string) => void }) {
       <p className="lead">내 내신·실기 지수·모의고사를 대학별 반영비율로 환산해 2026학년도 합격자와 비교했어요.</p>
       <div className="seg" role="group" aria-label="전형">{TT.map(([k, t]) => <button key={k} aria-pressed={tt === k} onClick={() => setTt(k)}>{t}</button>)}</div>
       <div className="filters">
-        <select aria-label="지역" value={area} onChange={(e) => setArea(e.target.value)}>{Object.keys(AREA).map((a) => <option key={a}>{a}</option>)}</select>
+        <select aria-label="지역" value={area} onChange={(e) => setArea(e.target.value)}>{Object.keys(AREA).filter((a) => a !== "선호 지역" || ctx.p.regions.length).map((a) => <option key={a}>{a}</option>)}</select>
         <select aria-label="전공" value={mine ? "mine" : "all"} onChange={(e) => setMine(e.target.value === "mine")}><option value="mine">{ctx.p.major} 관련만</option><option value="all">모든 전공</option></select>
         <select aria-label="판정" value={vf} onChange={(e) => setVf(e.target.value as "전체" | Verdict)}>{["전체", ...VERDICTS].map((v) => <option key={v}>{v}</option>)}</select>
       </div>
@@ -295,10 +313,9 @@ function ProgramView({ u, ctx, back, target, setTarget }: { u: Program; ctx: Ctx
 
 // ---------------- 로드맵 ----------------
 function Road({ ctx, u, go }: { ctx: Ctx; u?: Program; go: (t: Tab) => void }) {
-  if (!u) return <><h1 className="page">합격 로드맵</h1><div className="notice">대학찾기에서 목표 대학을 먼저 정해 주세요.</div><button className="btn" onClick={() => go("match")}>대학찾기</button></>;
+  if (!u) return <><h2 className="sec">합격 로드맵</h2><div className="notice">대학찾기에서 목표 대학을 먼저 정해 주세요.</div><button className="btn" onClick={() => go("match")}>대학찾기</button></>;
   const j = judge(u, toStudent(ctx)); const { months, weak, steps } = buildPlan(u, j, ctx); const w2 = weak.slice(0, 2);
   return <>
-    <h1 className="page">합격 로드맵</h1>
     <div className="card"><div className="row between"><b>{fullName(u)} {u.dept}</b><span className={`chip ${VERDICT_STYLE[j.verdict].c}`}>{j.verdict}</span></div><span className="small muted">{u.track} · 실기까지 약 {months}개월 (예상)</span></div>
     <h2 className="sec">무엇을 먼저 올릴까</h2>
     <div className="card">{priorities(j).map((g, i) => <div className="row between" key={g.k}><span><b>{i + 1}. {g.k}</b> <span className="tiny">반영 {Math.round((g.w / (u.wP + u.wG + u.wC + u.wO || 1)) * 100)}%</span></span><span className="small num">{g.mine} → {g.need} {g.margin < 0 ? <span style={{ color: "var(--reach)" }}>보완</span> : <span style={{ color: "var(--good)" }}>충족</span>}</span></div>)}
@@ -332,12 +349,20 @@ function Me({ user, profile, isNew, awards, reload, onSignOut }: { user: AuthUse
       </div>
       <div className="grid2">
         <label className="f">학년<select id="pf-grade" value={p.grade} onChange={(e) => set("grade", e.target.value as Profile["grade"])}>{["고1", "고2", "고3", "N수"].map((g) => <option key={g}>{g}</option>)}</select></label>
-        <label className="f">희망 전공<select id="pf-major" value={p.major} onChange={(e) => set("major", e.target.value)}>{MAJORS.map((m) => <option key={m}>{m}</option>)}</select></label>
+        <label className="f">희망 전공<select id="pf-major" value={p.major} onChange={(e) => { const m = e.target.value; setP((x) => ({ ...x, major: m, ...(isNew && MAJOR_TRACK[m] ? { track: MAJOR_TRACK[m][0], field: MAJOR_TRACK[m][1] } : {}) })); }}>{MAJORS.map((m) => <option key={m}>{m}</option>)}</select></label>
       </div>
       <div className="grid2">
         <label className="f"><span>내신 등급 <span className="tiny">({sys}등급제)</span></span><NumInput id="pf-gpa" min={1} max={sys} value={p.gpa} onCommit={(v) => set("gpa", v ?? 1)} placeholder={`1 ~ ${sys}`} /></label>
         <label className="f"><span>모의고사 평균 백분위</span><NumInput id="pf-mock" min={0} max={100} allowEmpty value={p.mockKnown ? p.mock : null} placeholder="모르면 비워두기" onCommit={(v) => { set("mockKnown", v !== null); set("mock", v ?? 0); }} /></label>
       </div>
+      <div className="grid2">
+        <label className="f">계열<select id="pf-track" value={p.track} onChange={(e) => { const t = e.target.value; setP((x) => ({ ...x, track: t, field: fieldsOf(t).includes(x.field) ? x.field : fieldsOf(t)[0] })); }}>{TRACKS.map((t) => <option key={t}>{t}</option>)}</select></label>
+        <label className="f">분야<select id="pf-field" value={p.field} onChange={(e) => set("field", e.target.value)}>{fieldsOf(p.track).map((f) => <option key={f} value={f}>{f.replace("(게임)", "")}</option>)}</select></label>
+      </div>
+      <span className="tiny">작품 분야와 같은 5계열 21분야예요. 학원 찾기·주간 연습 과제가 이 분야에 맞춰져요.</span>
+      <span className="f-label">선호 지역 <span className="tiny">(대학·학원 찾기에 반영, 여러 곳 선택)</span></span>
+      <div className="rgroups">{REGION_GROUPS.map(([g, rs]) => { const on = rs.every((r) => p.regions.includes(r)); return <button type="button" key={g} aria-pressed={on} onClick={() => set("regions", on ? p.regions.filter((r) => !rs.includes(r)) : [...new Set([...p.regions, ...rs])])}>{g}</button>; })}</div>
+      <div className="daypick wrap">{REGIONS.map((r) => <button type="button" key={r} aria-pressed={p.regions.includes(r)} onClick={() => set("regions", p.regions.includes(r) ? p.regions.filter((x) => x !== r) : [...p.regions, r])}>{r}</button>)}</div>
       <label className="f">미술학원 시작 (연-월)<input id="pf-academy" type="month" value={p.academyStart} onChange={(e) => set("academyStart", e.target.value)} /></label>
       <span className="tiny">고1·고2는 5등급제, 고3·N수는 9등급제예요 (2028 대입개편). 대학 입결(9등급제)과 비교할 때는 같은 석차 비율로 환산해요. 학원 {academyMonths(p)}개월. 모의고사를 비우면 내신 수준으로 추정해요.</span>
       {err && <div className="err" role="alert">{err}</div>}{msg && <div className="ok-msg">{msg}</div>}
