@@ -47,9 +47,10 @@ export function onAuthChange(cb: (u: AuthUser | null) => void): () => void {
   const { data } = sb.auth.onAuthStateChange((_e, s) => cb(toUser(s?.user)));
   return () => data.subscription.unsubscribe();
 }
-export async function signUp(email: string, password: string): Promise<{ needsConfirm: boolean }> {
+export async function signUp(email: string, password: string, consent?: Consent): Promise<{ needsConfirm: boolean }> {
   if (sb) {
-    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.href.split("#")[0] } });
+    // 메일 인증 전에는 세션이 없어 표에 못 씀 → 가입 정보(user_metadata)에 담아 두고 첫 로그인 때 표로 옮김
+    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.href.split("#")[0], data: consent ? { marketing_consent: consent } : undefined } });
     if (error) throw new Error(koError(error.message));
     return { needsConfirm: !data.session };
   }
@@ -80,6 +81,50 @@ function koError(m: string): string {
   if (/Password should be at least/i.test(m)) return "비밀번호는 6자 이상이어야 해요.";
   if (/rate limit/i.test(m)) return "요청이 많아요. 잠시 후 다시 시도해 주세요.";
   return m;
+}
+
+// ---------- 마케팅 활용 동의 (주식회사 엠굿 · 월간 미대입시) ----------
+// 개인정보보호법 제22조: 필수 동의와 분리한 선택 동의, 거부해도 가입·이용 가능
+// 정보통신망법 제50조: 광고성 정보는 채널별 수신 동의, 시행령 제62조: 2년마다 수신 동의 여부 확인
+export const CONSENT_VER = "2026-10";
+export const CONSENT_CHANNELS = ["이메일", "앱 알림", "문자"] as const;
+export type ConsentChannel = (typeof CONSENT_CHANNELS)[number];
+export type Consent = { marketing: boolean; channels: ConsentChannel[]; at: string; ver: string; withdrawnAt?: string };
+export const CONSENT_TEXT = {
+  company: "주식회사 엠굿(월간 미대입시)",
+  items: "이메일, 학년, 관심 계열·분야, 선호 지역, 목표 대학",
+  purpose: "엠굿 사업(월간 미대입시·입시설명회·실기대회·교재·교보재·미대갈래 제휴 대학·학원) 소식, 이벤트·할인 혜택 안내와 관심 분야 맞춤 광고",
+  period: "동의 철회 또는 회원 탈퇴 시까지",
+};
+export const reconfirmDue = (c: Consent | null) => !!c?.marketing && Date.now() - Date.parse(c.at) > 730 * 864e5;
+const missingTable = (m: string) => /marketing_consents|relation|schema cache|does not exist/i.test(m);
+export async function loadConsent(u: AuthUser): Promise<Consent | null> {
+  if (sb) {
+    const { data, error } = await sb.from("marketing_consents").select("data").eq("user_id", u.id).maybeSingle();
+    if (data?.data) return data.data as Consent;
+    const meta = (await sb.auth.getUser()).data.user?.user_metadata?.marketing_consent as Consent | undefined;
+    if (meta) { if (!error) await saveConsent(u, meta); return meta; }
+    if (error && !missingTable(error.message)) throw new Error(error.message);
+  }
+  return uget<Consent | null>(u, "consent", null);
+}
+export async function saveConsent(u: AuthUser, c: Consent): Promise<void> {
+  uset(u, "consent", c);
+  if (!sb) return;
+  const { error } = await sb.from("marketing_consents").upsert({ user_id: u.id, email: u.email, marketing: c.marketing, data: c, updated_at: new Date().toISOString() });
+  if (error && !missingTable(error.message)) throw new Error("동의 내용을 저장하지 못했어요: " + error.message);
+  await sb.auth.updateUser({ data: { marketing_consent: c } });
+}
+// 운영자: 동의 회원 목록 (데모는 이 기기의 모든 데모 계정)
+export async function listConsents(): Promise<{ email: string; c: Consent }[]> {
+  if (sb) {
+    const { data, error } = await sb.from("marketing_consents").select("email,data").order("updated_at", { ascending: false });
+    if (error) { if (missingTable(error.message)) return []; throw new Error(error.message); }
+    return (data || []).map((r) => ({ email: r.email, c: r.data as Consent }));
+  }
+  const d = lread(), byId = Object.fromEntries(Object.entries(d.ids || {}).map(([e, id]) => [id, e]));
+  if (d.user) byId[d.user.id] = d.user.email;
+  return Object.entries(byId).flatMap(([id, email]) => { const c = uget<Consent | null>({ id, email }, "consent", null); return c ? [{ email, c }] : []; });
 }
 
 // ---------- 프로필 ----------
