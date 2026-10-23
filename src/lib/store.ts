@@ -29,7 +29,7 @@ export function uset<T>(u: AuthUser, name: string, v: T) { try { localStorage.se
 
 // ---------- 데모(로컬) 저장 ----------
 const LK = "midae-navi-demo-v1";
-type Local = { user?: { id: string; email: string }; profile?: Profile; awards: Award[]; works: Artwork[] };
+type Local = { user?: { id: string; email: string }; profile?: Profile; awards: Award[]; works: Artwork[]; ids?: Record<string, string> };
 const lread = (): Local => { try { return JSON.parse(localStorage.getItem(LK) || "") as Local; } catch { return { awards: [], works: [] }; } };
 const lwrite = (d: Local) => { try { localStorage.setItem(LK, JSON.stringify(d)); } catch { /* 저장 공간 부족 등 */ } };
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -53,11 +53,16 @@ export async function signUp(email: string, password: string): Promise<{ needsCo
     if (error) throw new Error(koError(error.message));
     return { needsConfirm: !data.session };
   }
-  const d = lread(); d.user = { id: "demo-" + uid(), email }; lwrite(d); return { needsConfirm: false };
+  const d = lread(); d.user = { id: demoId(d, email), email }; lwrite(d); return { needsConfirm: false };
 }
 export async function signIn(email: string, password: string): Promise<void> {
   if (sb) { const { error } = await sb.auth.signInWithPassword({ email, password }); if (error) throw new Error(koError(error.message)); return; }
-  const d = lread(); d.user = d.user && d.user.email === email ? d.user : { id: "demo-" + uid(), email }; lwrite(d);
+  const d = lread(); d.user = d.user && d.user.email === email ? d.user : { id: demoId(d, email), email }; lwrite(d);
+}
+// 데모: 같은 이메일은 늘 같은 아이디 — 한 기기에서 계정을 바꿔 가며 이용자·선배·운영자 역할을 시험할 수 있게
+function demoId(d: Local, email: string): string {
+  d.ids = d.ids || {}; if (d.user) d.ids[d.user.email] = d.user.id;
+  return (d.ids[email] = d.ids[email] || "demo-" + uid());
 }
 export async function resetPassword(email: string): Promise<void> {
   if (!sb) throw new Error("데모 모드에서는 비밀번호 재설정을 쓸 수 없어요.");

@@ -217,6 +217,7 @@ function CritiqueView({ user, works, go }: { user: AuthUser; works: { id: string
   const total = reqs.reduce((a, r) => a + (CRITIQUES.find((c) => c.id === r.svc)?.price || 0), 0);
   return <>
     <BetaNote>실제 전문가 연결과 결제는 아직 되지 않아요. 아래는 서비스 흐름을 미리 보는 <b>가상 가격</b>이며, '신청 체험'을 눌러도 금액이 청구되지 않아요.</BetaNote>
+    <button className="card-btn" onClick={() => go("mentor")}><div className="card mentor-cta"><span className="chip t-fit" style={{ alignSelf: "flex-start" }}>NEW</span><b>인증된 미대 선배에게 1:1 첨삭 받기 →</b><span className="small muted">재학·성적 증명서로 인증된 선배와 바로 매칭돼요. 작은 조언 5천~3만 원, 큰 조언 3만~15만 원.</span></div></button>
     <div className="card"><b>비용 한눈에</b>
       <div className="costgrid">
         <div><span className="tiny">AI 진단</span><b className="num">무료</b></div>

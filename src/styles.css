@@ -32,8 +32,8 @@ header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background
 @media (max-width:400px){.brand span{display:none}}
 .pill{font-size:11px;padding:3px 9px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-weight:600;white-space:nowrap}
 main#view{flex:1;padding:18px 16px 28px;display:flex;flex-direction:column;gap:16px;min-width:0}
-nav.tabs{position:sticky;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(6,1fr);background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(8px + env(safe-area-inset-bottom,0px))}
-nav.tabs button{border:0;background:none;padding:6px 0 2px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--ink-3);cursor:pointer;border-radius:10px}
+nav.tabs{position:sticky;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(7,1fr);background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(8px + env(safe-area-inset-bottom,0px))}
+nav.tabs button{border:0;background:none;padding:6px 0 2px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;white-space:nowrap;color:var(--ink-3);cursor:pointer;border-radius:10px}
 nav.tabs button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
 nav.tabs button[aria-current="page"]{color:var(--accent);font-weight:600}
 nav.tabs button:focus-visible,.btn:focus-visible,.card-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -69,7 +69,7 @@ p.lead{margin:-6px 0 0;color:var(--ink-2);font-size:14px}
 .bar i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:var(--accent)}
 .bar .mark{position:absolute;top:-4px;width:2px;height:16px;background:var(--ink);border-radius:2px}
 label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--ink-2);min-width:0}
-label.f input,label.f select{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px;width:100%;min-width:0}
+label.f input,label.f select,label.f textarea,.card textarea,.card > select,.compose input[type=file]{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px;width:100%;min-width:0}
 label.f input:focus,label.f select:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
 .works{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .work{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
@@ -223,3 +223,51 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .costgrid div{background:var(--paper);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:2px}
 .costgrid b{font-size:17px}
 .crit .order{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--line);padding-top:10px}
+
+/* ---------- v0.10 멘토 매칭 ---------- */
+textarea{resize:vertical;line-height:1.5}
+.card textarea,.card > select{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0}
+.compose input[type=file]{font-size:12px;padding:6px}
+.mentor-cta{border-color:var(--accent);background:linear-gradient(135deg,var(--accent-soft),var(--card))}
+.flow4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.flow4 span{display:flex;flex-direction:column;gap:2px;font-size:11px;line-height:1.35;background:rgba(255,255,255,.14);border-radius:10px;padding:8px 6px}
+.flow4 b{font-size:15px}
+.fieldpick{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.fieldpick button{display:flex;flex-direction:column;gap:2px;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:9px 10px;cursor:pointer}
+.fieldpick button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent)}
+.fieldpick button[aria-pressed="true"] b{color:var(--accent)}
+.fieldpick button:last-child:nth-child(odd){grid-column:span 2}
+select.mini{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:4px 8px;font-size:12px}
+.mentor .name,.req .name{font-weight:700}
+.stars{color:#E6A700;letter-spacing:1px}.stars i{font-style:normal;color:var(--line)}
+.tags.pick button{font-size:12px;padding:5px 11px;border-radius:99px;border:1px solid var(--line);background:var(--card);cursor:pointer;color:var(--ink-2)}
+.tags.pick button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.steps span{font-size:10.5px;text-align:center;padding:5px 2px;border-radius:8px;background:var(--paper);color:var(--ink-3);border:1px solid var(--line)}
+.steps span.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.money{display:flex;flex-direction:column;gap:2px;background:var(--paper);border-radius:12px;padding:10px 12px;font-family:var(--f-num)}
+.money b{border-top:1px dashed currentColor;padding-top:4px;margin-top:2px}
+.warn-t{color:var(--warn);font-weight:600}
+.chat{display:flex;flex-direction:column;gap:8px}
+.bubble{max-width:88%;display:flex;flex-direction:column;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:9px 12px;font-size:13.5px;white-space:pre-wrap;overflow-wrap:anywhere}
+.bubble.me{align-self:flex-end;background:var(--accent-soft);border-color:transparent;border-radius:14px 14px 4px 14px}
+.bubble.system{align-self:center;max-width:100%;background:transparent;border:1px dashed var(--line);color:var(--ink-2);font-size:12px;text-align:center;border-radius:10px}
+.bubble.admin{align-self:center;background:var(--warn-soft);border-color:transparent}
+.bubble .flag{color:var(--reach)}
+.filechip{align-self:flex-start;border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.viewer{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px}
+.viewer-box{position:relative;max-width:100%;max-height:82vh;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.viewer-box img{display:block;max-width:100%;max-height:82vh;pointer-events:none}
+.viewer-box .wm{position:absolute;inset:0;background-repeat:repeat;pointer-events:none}
+.docrow{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px dashed var(--line);border-radius:12px;padding:10px 12px;cursor:pointer}
+.docrow.has{border-style:solid;border-color:var(--good);background:var(--good-soft)}
+.docrow .btn{padding:7px 12px;font-size:13px;flex:none}
+input.price{width:110px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--card);text-align:right;font-family:var(--f-num)}
+.tbl{display:flex;flex-direction:column;font-size:12px}
+.tbl .th,.tbl .tr{display:grid;grid-template-columns:1.6fr 1fr .9fr .8fr;gap:6px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--line);text-align:left}
+.tbl .th{color:var(--ink-3);font-size:11px}
+.tbl .tr{border:0;border-bottom:1px solid var(--line);background:none;cursor:pointer;width:100%}
+.tbl .tr .chip{font-size:10.5px;padding:2px 6px}
+.starpick{display:flex;gap:4px}.starpick button{border:0;background:none;font-size:28px;color:var(--line);cursor:pointer;padding:0 2px}.starpick button.on{color:#E6A700}
+.review{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--line);padding-top:8px}
+.small-seg button{font-size:11.5px;padding:7px 2px}

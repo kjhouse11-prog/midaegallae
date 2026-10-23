@@ -35,6 +35,7 @@ const icons: Record<string, string> = {
   road: "M4 19c4 0 4-6 8-6s4-6 8-6",
   plan: "M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 10h16M8 2v4M16 2v4M8 15l2.5 2.5L16 13",
   acad: "M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5M10 12h4",
+  mentor: "M8 7a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM2 20c.8-3 3.2-5 6-5s5.2 2 6 5M14 4h7v6h-3l-2 2v-2h-2z",
   me: "M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8zM4 21c1.5-4 4.5-6 8-6s6.5 2 8 6",
 };
 export function Icon({ name }: { name: string }) { return <svg viewBox="0 0 24 24"><path d={icons[name]} /></svg>; }
