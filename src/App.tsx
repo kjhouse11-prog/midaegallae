@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { DRILL, FIELD_GROUPS, FIELDS, MAJORS, MAJOR_TRACK, REGIONS, REGION_GROUPS, SOLID_VIEWS, TRACKS, fieldGroup, fieldsOf, isSolidField } from "./lib/data";
 import { AcademyTab, Planner, useWeek, weekDone, type AcadSub, type PlanSub } from "./features";
+import { MentorTab, type MentorSub } from "./mentor";
 import { dayDiff, nextEvent } from "./lib/planner";
 import { BENEFITS, benefitFor } from "./lib/benefits";
 import * as S from "./lib/store";
@@ -15,7 +16,7 @@ const PROGRAMS = DATA.programs as Program[];
 setUniverse(PROGRAMS);
 const byId = (id: string) => PROGRAMS.find((p) => p.id === id);
 const fullName = (p: Program) => `${p.univ}${p.campus ? `(${p.campus})` : ""}`;
-type Tab = "home" | "works" | "match" | "plan" | "acad" | "me";
+type Tab = "home" | "works" | "match" | "plan" | "mentor" | "acad" | "me";
 const TARGET_KEY = "midae-navi-target-v4";
 const VERDICTS: Verdict[] = ["안정", "적정", "소신", "상향"];
 
@@ -31,15 +32,19 @@ export default function App() {
 function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState(""), [pw, setPw] = useState(""), [agree, setAgree] = useState(false), [age, setAge] = useState(false);
+  const [mkt, setMkt] = useState(false), [ch, setCh] = useState<S.ConsentChannel[]>([]);
+  const all = agree && age && mkt && ch.length === S.CONSENT_CHANNELS.length;
+  function setAll(v: boolean) { setAgree(v); setAge(v); setMkt(v); setCh(v ? [...S.CONSENT_CHANNELS] : []); }
   const [err, setErr] = useState(""), [msg, setMsg] = useState(""), [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr(""); setMsg("");
     if (mode === "up" && (!agree || !age)) { setErr("필수 동의 항목에 체크해 주세요."); return; }
     setBusy(true);
     try {
-      if (mode === "up") { const r = await S.signUp(email.trim(), pw); if (r.needsConfirm) { setMsg("인증 메일을 보냈어요. 메일의 링크를 누른 뒤 로그인해 주세요."); setMode("in"); return; } }
+      const consent: S.Consent = { marketing: mkt, channels: mkt ? ch : [], at: new Date().toISOString(), ver: S.CONSENT_VER };
+      if (mode === "up") { const r = await S.signUp(email.trim(), pw, consent); if (r.needsConfirm) { setMsg("인증 메일을 보냈어요. 메일의 링크를 누른 뒤 로그인해 주세요."); setMode("in"); return; } }
       else await S.signIn(email.trim(), pw);
-      const u = await S.currentUser(); if (u) onDone(u);
+      const u = await S.currentUser(); if (u && mode === "up") await S.saveConsent(u, consent).catch(() => {}); if (u) onDone(u);
     } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
   }
   async function reset() { setErr(""); setMsg(""); if (!email) { setErr("이메일을 먼저 입력해 주세요."); return; } try { await S.resetPassword(email.trim()); setMsg("비밀번호 재설정 메일을 보냈어요."); } catch (x) { setErr((x as Error).message); } }
@@ -54,8 +59,10 @@ function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
       <label className="f">이메일<input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
       <label className="f">비밀번호 {mode === "up" && <span className="tiny">(6자 이상)</span>}<input id="pw" type="password" autoComplete={mode === "up" ? "new-password" : "current-password"} required minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} /></label>
       {mode === "up" && <>
+        <label className="check all"><input id="agree-all" type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /><b>전체 동의 (선택 항목 포함)</b></label>
         <label className="check"><input id="agree" type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} /><span>(필수) 개인정보 수집·이용에 동의합니다. 내신·작품 등 입력 정보는 입시 진단에만 사용됩니다.</span></label>
         <label className="check"><input id="age" type="checkbox" checked={age} onChange={(e) => setAge(e.target.checked)} /><span>(필수) 만 14세 이상입니다. 만 14세 미만은 보호자 동의를 받은 뒤 가입해 주세요.</span></label>
+        <ConsentBox mkt={mkt} setMkt={setMkt} ch={ch} setCh={setCh} />
       </>}
       {err && <div className="err" role="alert">{err}</div>}{msg && <div className="ok-msg">{msg}</div>}
       <button className="btn block" disabled={busy}>{busy ? <span className="spinner" /> : mode === "in" ? "로그인" : "가입하기"}</button>
@@ -64,6 +71,39 @@ function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
       <p className="tiny">버전 {APP_VERSION}</p>
     </form>
   );
+}
+
+// (주)엠굿 마케팅 활용 동의 — 가입 화면과 마이 탭에서 같이 씀
+function ConsentBox({ mkt, setMkt, ch, setCh }: { mkt: boolean; setMkt: (v: boolean) => void; ch: S.ConsentChannel[]; setCh: (v: S.ConsentChannel[]) => void }) {
+  const T = S.CONSENT_TEXT;
+  return <div className="consent">
+    <label className="check"><input id="mkt" type="checkbox" checked={mkt} onChange={(e) => { setMkt(e.target.checked); setCh(e.target.checked ? (ch.length ? ch : [...S.CONSENT_CHANNELS]) : []); }} /><span>(선택) {T.company}의 사업 마케팅 활용에 동의합니다.</span></label>
+    <details><summary className="tiny">내용 보기</summary>
+      <table className="tbl tiny"><tbody>
+        <tr><th>받는 곳</th><td>{T.company}</td></tr><tr><th>항목</th><td>{T.items}</td></tr>
+        <tr><th>목적</th><td>{T.purpose}</td></tr><tr><th>보유 기간</th><td>{T.period}</td></tr>
+      </tbody></table>
+      <span className="tiny">동의하지 않아도 회원가입과 모든 기능을 이용할 수 있어요. 마이 탭에서 언제든 철회할 수 있고, 광고성 정보에는 (광고) 표시와 수신 거부 방법을 함께 안내해요. 동의는 2년마다 다시 확인해요.</span>
+    </details>
+    {mkt && <div className="daypick" role="group" aria-label="광고성 정보 받을 방법">{S.CONSENT_CHANNELS.map((c) => <button type="button" key={c} aria-pressed={ch.includes(c)} onClick={() => { const n = ch.includes(c) ? ch.filter((x) => x !== c) : [...ch, c]; setCh(n); if (!n.length) setMkt(false); }}>{c}</button>)}</div>}
+  </div>;
+}
+function ConsentCard({ user }: { user: AuthUser }) {
+  const [c, setC] = useState<S.Consent | null>(null), [mkt, setMkt] = useState(false), [ch, setCh] = useState<S.ConsentChannel[]>([]), [msg, setMsg] = useState(""), [err, setErr] = useState("");
+  useEffect(() => { S.loadConsent(user).then((x) => { setC(x); setMkt(!!x?.marketing); setCh(x?.channels || []); }).catch((x) => setErr((x as Error).message)); }, [user]);
+  const dirty = mkt !== !!c?.marketing || ch.join() !== (c?.channels || []).join();
+  async function save() {
+    setErr(""); setMsg("");
+    const at = new Date().toISOString(), n: S.Consent = mkt ? { marketing: true, channels: ch, at, ver: S.CONSENT_VER } : { marketing: false, channels: [], at: c?.at || at, ver: S.CONSENT_VER, withdrawnAt: at };
+    try { await S.saveConsent(user, n); setC(n); setMsg(mkt ? "동의 내용을 저장했어요." : "마케팅 활용 동의를 철회했어요. 앞으로 광고성 정보를 보내지 않아요."); } catch (x) { setErr((x as Error).message); }
+  }
+  return <div className="card"><b>마케팅 활용 동의</b>
+    <span className="small muted">{c?.marketing ? `동의함 · ${c.channels.join(", ")} · ${c.at.slice(0, 10)}` : c?.withdrawnAt ? `철회함 · ${c.withdrawnAt.slice(0, 10)}` : "동의하지 않음"}</span>
+    {S.reconfirmDue(c) && <div className="notice">동의한 지 2년이 지났어요. 계속 소식을 받으시려면 아래에서 다시 저장해 주세요.</div>}
+    <ConsentBox mkt={mkt} setMkt={setMkt} ch={ch} setCh={setCh} />
+    {err && <div className="err" role="alert">{err}</div>}{msg && <div className="ok-msg">{msg}</div>}
+    <button className="btn line block" disabled={!dirty && !S.reconfirmDue(c)} onClick={save}>저장</button>
+  </div>;
 }
 
 // ---------------- 메인 ----------------
@@ -76,7 +116,7 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const [target, setTargetState] = useState<string>(() => { try { return localStorage.getItem(TARGET_KEY) || ""; } catch { return ""; } });
   const [detail, setDetail] = useState<string | null>(null);
   const [workDetail, setWorkDetail] = useState<string | null>(null);
-  const [planSub, setPlanSub] = useState<PlanSub>("plan"), [acadSub, setAcadSub] = useState<AcadSub>("find");
+  const [planSub, setPlanSub] = useState<PlanSub>("plan"), [acadSub, setAcadSub] = useState<AcadSub>("find"), [mentorSub, setMentorSub] = useState<MentorSub>("find");
   const setTarget = (id: string) => { setTargetState(id); try { localStorage.setItem(TARGET_KEY, id); } catch { /* */ } };
 
   const reload = useCallback(async () => {
@@ -86,7 +126,7 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   useEffect(() => { reload(); }, [reload]);
   const go = (t: Tab, sub?: string) => {
     setTab(t); setDetail(null); setWorkDetail(null); window.scrollTo(0, 0);
-    if (t === "plan" && sub) setPlanSub(sub as PlanSub); if (t === "acad" && sub) setAcadSub(sub as AcadSub);
+    if (t === "plan" && sub) setPlanSub(sub as PlanSub); if (t === "acad" && sub) setAcadSub(sub as AcadSub); if (t === "mentor" && sub) setMentorSub(sub as MentorSub);
   };
   const open = (id: string) => { setTab("match"); setDetail(id); window.scrollTo(0, 0); };
 
@@ -99,6 +139,7 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
     tab === "works" ? <Works user={user} works={works} reload={reload} detail={workDetail} setDetail={setWorkDetail} defaultField={p.field} /> :
     tab === "match" ? (detail && byId(detail) ? <ProgramView u={byId(detail)!} ctx={ctx} back={() => setDetail(null)} target={target} setTarget={setTarget} /> : <Match ctx={ctx} open={open} />) :
     tab === "plan" ? <Planner user={user} ctx={ctx} target={tp} road={<Road ctx={ctx} u={tp} go={go} />} sub={planSub} setSub={setPlanSub} go={(t) => go(t as Tab)} /> :
+    tab === "mentor" ? <MentorTab user={user} p={p} works={works} sub={mentorSub} setSub={setMentorSub} /> :
     tab === "acad" ? <AcademyTab user={user} p={p} works={works} sub={acadSub} setSub={setAcadSub} go={(t) => go(t as Tab)} /> :
     <Me user={user} profile={p} isNew={needProfile} awards={awards} reload={reload} onSignOut={onSignOut} />;
   return (
@@ -106,7 +147,7 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
       <header className="top"><div className="brand"><b>미대갈래</b><span>by 월간 미대입시</span></div><span className="pill">베타 v{APP_VERSION}</span></header>
       <main id="view">{err && <div className="notice" role="alert">{err}</div>}{view}<AdBanner /></main>
       <nav className="tabs" aria-label="주요 메뉴">
-        {([["home", "홈"], ["works", "내 작품"], ["match", "대학찾기"], ["plan", "플래너"], ["acad", "학원"], ["me", "마이"]] as [Tab, string][]).map(([k, t]) =>
+        {([["home", "홈"], ["works", "작품"], ["match", "대학찾기"], ["plan", "플래너"], ["mentor", "멘토"], ["acad", "학원"], ["me", "마이"]] as [Tab, string][]).map(([k, t]) =>
           <button key={k} aria-current={tab === k ? "page" : undefined} onClick={() => go(k)}><Icon name={k} />{t}</button>)}
       </nav>
     </>
@@ -145,8 +186,9 @@ function Home({ user, ctx, target, go, open }: { user: AuthUser; ctx: Ctx; targe
       <button onClick={() => go("acad", "find")}><span className="qi">🏫</span>나에게 맞는<br />학원 찾기</button>
       <button onClick={() => go("plan", "plan")}><span className="qi">🎯</span>개인 맞춤<br />입시 플래너</button>
       <button onClick={() => go("plan", "week")}><span className="qi">✅</span>주간 체크<br /><b className="num">{weekDone(week)}</b></button>
-      <button onClick={() => go("acad", "crit")}><span className="qi">✏️</span>첨삭<br />비용 예시</button>
+      <button onClick={() => go("mentor", "find")}><span className="qi">🎓</span>미대 선배<br />1:1 조언</button>
     </div>
+    <button className="card-btn" onClick={() => go("mentor", "find")}><div className="card mentor-cta"><span className="chip t-fit" style={{ alignSelf: "flex-start" }}>NEW · 인증 선배 매칭</span><b>합격한 미대 선배에게 1:1로 물어보세요</b><span className="small muted">서류·면접·포트폴리오·학생부·실기 · 작은 조언 5천 원부터 · 결제금은 조언 확정 후 전달</span></div></button>
     {next && <button className="card-btn" onClick={() => go("plan", "cal")}><div className="card row between"><span className="small"><b>다음 입시 일정</b><br /><span className="muted">{next.label}</span></span><b className="num" style={{ fontSize: 22, color: "var(--accent)" }}>{dayDiff(next.start, NOW) <= 0 ? "진행 중" : `D-${dayDiff(next.start, NOW)}`}</b></div></button>}
     <h2 className="sec">이번 주 할 일</h2>
     {week && week.tasks.length ? <div className="card"><ul className="checks">{week.tasks.filter((t) => !t.done).slice(0, 4).map((t) => <li key={t.id}><label><input type="checkbox" onChange={() => setWeek({ ...week, tasks: week.tasks.map((x) => (x.id === t.id ? { ...x, done: true } : x)) })} /><span className="dw">{t.day}</span><span className="tx small">{t.text}</span></label></li>)}</ul>
@@ -383,6 +425,7 @@ function Me({ user, profile, isNew, awards, reload, onSignOut }: { user: AuthUse
         <span className="tiny">{b.basis}{b.source ? <> · 출처 <a href={b.source.url} target="_blank" rel="noopener">{b.source.name}</a></> : null}</span>
       </div>)}</div>
       <span className="tiny">특전은 해마다 바뀌어요. 지원 전 반드시 해당 대학의 당해 모집요강과 대회 공고를 확인하세요. 특전 정보는 「월간 미대입시」 편집부가 계속 보완합니다.</span></div>}
+    {!isNew && <ConsentCard user={user} />}
     <button className="btn line block" onClick={onSignOut}>로그아웃</button>
     <p className="tiny">버전 {APP_VERSION}</p>
   </>;
