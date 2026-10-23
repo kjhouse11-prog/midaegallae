@@ -20,6 +20,7 @@ setUniverse(PROGRAMS);
 const byId = (id: string) => PROGRAMS.find((p) => p.id === id);
 const fullName = (p: Program) => `${p.univ}${p.campus ? `(${p.campus})` : ""}`;
 type Tab = "home" | "works" | "match" | "plan" | "mentor" | "acad" | "me";
+const TABS: [Tab, string][] = [["home", "홈"], ["works", "작품"], ["match", "대학찾기"], ["plan", "플래너"], ["mentor", "멘토"], ["acad", "학원"], ["me", "마이"]];
 const TARGET_KEY = "midae-navi-target-v4";
 const VERDICTS: Verdict[] = ["안정", "적정", "소신", "상향"];
 
@@ -148,11 +149,15 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
     <Me user={user} profile={p} isNew={needProfile} awards={awards} reload={reload} onSignOut={onSignOut} />;
   return (
     <>
-      <header className="top"><div className="brand"><b>미대갈래</b><span>by 월간 미대입시</span></div><span className="pill">베타 v{APP_VERSION}</span></header>
+      <header className="top">
+        <div className="top-row"><button className="brand" onClick={() => go("home")} aria-label="홈으로"><b>미대갈래</b><span>by 월간 미대입시</span></button><span className="pill">베타 v{APP_VERSION}</span></div>
+        <nav className="topnav" aria-label="빠른 메뉴">
+          {TABS.map(([k, t]) => <button key={k} aria-current={tab === k ? "page" : undefined} onClick={() => go(k)}>{t}</button>)}
+        </nav>
+      </header>
       <main id="view">{err && <div className="notice" role="alert">{err}</div>}{view}<AdBanner /></main>
       <nav className="tabs" aria-label="주요 메뉴">
-        {([["home", "홈"], ["works", "작품"], ["match", "대학찾기"], ["plan", "플래너"], ["mentor", "멘토"], ["acad", "학원"], ["me", "마이"]] as [Tab, string][]).map(([k, t]) =>
-          <button key={k} aria-current={tab === k ? "page" : undefined} onClick={() => go(k)}><Icon name={k} />{t}</button>)}
+        {TABS.map(([k, t]) => <button key={k} aria-current={tab === k ? "page" : undefined} onClick={() => go(k)}><Icon name={k} />{t}</button>)}
       </nav>
     </>
   );
