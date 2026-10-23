@@ -125,4 +125,18 @@ create policy afiles_sel on storage.objects for select to authenticated using (b
     select 1 from advice_requests r where r.id = (storage.foldername(name))[2]
       and (r.student_id = auth.uid()::text or r.mentor_id = auth.uid()::text or r.target_mentor_id = auth.uid()::text))));
 
+-- ---------- (주)엠굿 마케팅 활용 동의 (선택) ----------
+-- 가입 때 선택 동의 → 본인이 마이 탭에서 철회·변경, 운영자는 동의 회원 목록·CSV만 조회
+create table if not exists marketing_consents (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  marketing boolean not null default false,
+  data jsonb not null,                         -- 받을 방법·동의일·철회일·동의서 버전
+  updated_at timestamptz default now()
+);
+alter table marketing_consents enable row level security;
+drop policy if exists mc_own on marketing_consents; drop policy if exists mc_admin on marketing_consents;
+create policy mc_own on marketing_consents for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy mc_admin on marketing_consents for select to authenticated using (is_admin());
+
 select 'migrate v0.10 complete' as status;

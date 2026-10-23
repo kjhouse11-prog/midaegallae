@@ -6,8 +6,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import DATA from "./lib/programs.json";
 import type { Artwork, AuthUser, Profile } from "./lib/store";
 import * as M from "./lib/market";
+import * as S from "./lib/store";
 import {
-  ADVICE_FIELDS, DAYS, DOC_RULES, FIELD_HINT, KINDS, MENTOR_ROLES, STATUS_STEPS, STATUS_STYLE, addHours, ago, candidates, left, rating, rid, sampleAnswer, scan, split, sweep, withhold, won,
+  ADVICE_FIELDS, DAYS, DOC_RULES, needReverify, FIELD_HINT, KINDS, MENTOR_ROLES, STATUS_STEPS, STATUS_STYLE, addHours, ago, candidates, left, rating, rid, sampleAnswer, scan, split, sweep, withhold, won,
   type AdviceField, type AdviceKind, type AdviceReq, type Att, type Mentor, type MentorDoc, type MentorRole, type Msg, type Payout, type ReqStatus, type Settings,
 } from "./lib/mentor";
 
@@ -337,6 +338,7 @@ function MentorDash({ c, me, edit }: { c: Ctx; me: Mentor; edit: () => void }) {
     <div className="card hero"><div className="row between"><b>{me.name} · {me.univ} {me.dept}</b><span className="chip" style={{ background: "var(--accent-ink)", color: "var(--accent)" }}>✓ 인증 선배</span></div>
       <div className="grid3"><div><div className="num" style={{ fontSize: 22 }}>{inbox.length}</div><span className="small">새 요청</span></div><div><div className="num" style={{ fontSize: 22 }}>{mine.filter((x) => x.status === "진행 중").length}</div><span className="small">진행 중</span></div><div><div className="num" style={{ fontSize: 22 }}>{r.n ? r.avg.toFixed(1) : "–"}</div><span className="small">평점 ({r.n})</span></div></div>
       <span className="small muted">이번 달 확정 수입(실수령 기준) {won(month)}</span></div>
+    {needReverify(me) && <div className="err" role="alert">재학 확인 기간(한 학기)이 지났어요. 이번 학기 재학증명서를 다시 올려 주세요. <button className="linkbtn" onClick={edit}>재인증 신청</button></div>}
     <label className="check card"><input type="checkbox" checked={!me.away} onChange={(e) => c.act(() => M.saveMentor({ ...me, away: !e.target.checked }))} /><span><b>요청 받기</b> <span className="tiny">끄면 선배 목록과 자동 매칭에서 잠시 빠져요(시험 기간 등)</span></span></label>
     <h2 className="sec">새 요청 · 먼저 수락한 선배와 연결돼요</h2>
     {inbox.length ? inbox.map((x) => <ReqRow key={x.id} r={x} who={x.targetMentorId === me.id ? "나를 지정" : "자동 매칭"} onClick={() => c.open("req", x.id)} extra={<span className="tiny">예상 실수령 {won(withhold(split(x.price, x.feeRate).earn).net)}</span>} />) : <div className="notice">지금은 새 요청이 없어요. 가능 분야를 넓히면 더 많은 요청을 받을 수 있어요.</div>}
@@ -352,7 +354,7 @@ function MentorDash({ c, me, edit }: { c: Ctx; me: Mentor; edit: () => void }) {
 }
 function Apply({ c, me, done }: { c: Ctx; me?: Mentor; done: () => void }) {
   const [m, setM] = useState<Mentor>(() => me || { id: c.user.id, email: c.user.email, name: "", role: "미대 재학생", univ: "", dept: "", entryYear: new Date().getFullYear(), admitTrack: "수시 실기", fields: ["실기"], kinds: ["small"], price: { small: 15000, big: 60000 }, days: ["토", "일"], hours: "", intro: "", status: "심사 대기", docs: [], agreed: false, createdAt: now() });
-  const [acct, setAcct] = useState(""), [err, setErr] = useState(""), [up, setUp] = useState("");
+  const [acct, setAcct] = useState(""), [err, setErr] = useState(""), [up, setUp] = useState(""), [enrolled, setEnrolled] = useState(!!me);
   const set = <K extends keyof Mentor>(k: K, v: Mentor[K]) => setM((x) => ({ ...x, [k]: v }));
   const rule = DOC_RULES[m.role]; const has = (k: string) => m.docs.some((d) => d.kind === k);
   const approved = me?.status === "승인";
@@ -367,6 +369,7 @@ function Apply({ c, me, done }: { c: Ctx; me?: Mentor; done: () => void }) {
     for (const k of m.kinds) if (m.price[k] < KINDS[k].min || m.price[k] > KINDS[k].max) { setErr(`${KINDS[k].label} 가격은 ${won(KINDS[k].min)}~${won(KINDS[k].max)} 사이로 정해 주세요.`); return; }
     if (!approved && rule.need.some((k) => !has(k))) { setErr(`필수 서류(${rule.need.join("·")})를 모두 올려 주세요.`); return; }
     if (!m.agreed) { setErr("조언자 활동 규칙에 동의해 주세요."); return; }
+    if (m.role === "미대 재학생" && !enrolled) { setErr("현재 재학 중(휴학 아님)인지 확인해 주세요."); return; }
     const digits = acct.replace(/\D/g, "");
     const bank = digits.length >= 8 ? { ...(m.bank || { bank: "", holder: "" }), last4: digits.slice(-4) } : m.bank;
     if (bank && (!bank.bank || !bank.holder)) { setErr("은행과 예금주를 입력해 주세요."); return; }
@@ -411,6 +414,8 @@ function Apply({ c, me, done }: { c: Ctx; me?: Mentor; done: () => void }) {
       <span className="tiny">베타에서는 계좌번호 끝 4자리만 저장해요. 정식 출시 때는 정산 대행(PG) 본인 인증으로 계좌와 원천징수용 정보를 안전하게 받아요.</span></div>
     {!approved && <div className="card"><b>4. 조언자 활동 규칙</b>
       <ul className="list small"><li>조언·첨삭만 해요. <b>실기 대리 작업·서류 대필은 하지 않아요.</b></li><li>전화번호·메신저 교환, 앱 밖 직거래를 하지 않아요(위반 시 활동 정지).</li><li>합격 학교·학과·경력을 사실대로 적어요. 허위가 확인되면 정산이 보류되고 활동이 정지돼요.</li><li>학생이 올린 작품·서류는 조언에만 쓰고 저장·공유하지 않아요.</li><li>조언비는 수수료 {Math.round(c.mk.settings.feeRate * 100)}%와 원천징수 3.3%를 뺀 뒤 정산돼요.</li></ul>
+      {m.role === "미대 재학생" ? <label className="check"><input type="checkbox" checked={enrolled} onChange={(e) => setEnrolled(e.target.checked)} /><span>(필수) 지금 <b>재학 중</b>이에요(휴학 아님). 대학 재학생은 개인과외교습 신고가 면제되지만 휴학생은 교육청 신고 대상이라 휴학하면 활동을 멈춰야 해요. 재학 확인은 학기마다 다시 받아요.</span></label>
+        : <span className="tiny">학원 밖에서 개인적으로 교습비를 받는 강사·원장은 「학원법」 제14조의2에 따라 개인과외교습자 신고 대상일 수 있어요. 신고증명서가 있으면 함께 올려 주세요.</span>}
       <label className="check"><input type="checkbox" checked={m.agreed} onChange={(e) => set("agreed", e.target.checked)} /><span>(필수) 위 규칙과 개인정보(인증 서류) 수집·이용에 동의해요.</span></label></div>}
     {err && <div className="err" role="alert">{err}</div>}
     <button className="btn block" disabled={c.busy || !!up} onClick={submit}>{c.busy ? <span className="spinner" /> : approved ? "저장" : me ? "다시 신청하기" : "인증 신청하기"}</button>
@@ -419,7 +424,7 @@ function Apply({ c, me, done }: { c: Ctx; me?: Mentor; done: () => void }) {
 }
 
 // ======================= 운영자 =======================
-type AdminSub = "verify" | "reqs" | "dispute" | "pay" | "set";
+type AdminSub = "verify" | "reqs" | "dispute" | "pay" | "mkt" | "set";
 function Admin({ c }: { c: Ctx }) {
   const [sub, setSub] = useState<AdminSub>("verify");
   const { reqs, mentors, payouts, reports } = c.mk;
@@ -436,7 +441,7 @@ function Admin({ c }: { c: Ctx }) {
       <div className="stat"><span className="k">처리할 일</span><span className="v" style={{ fontSize: 19 }}>{pending.length + disputes.length + openRep.length + payWait.length}</span><span className="tiny">인증 {pending.length} · 분쟁 {disputes.length} · 신고 {openRep.length} · 정산 {payWait.length}</span></div>
       <div className="stat"><span className="k">활동 선배</span><span className="v" style={{ fontSize: 19 }}>{mentors.filter((m) => m.status === "승인" && !m.sample).length}</span><span className="tiny">가상 {mentors.filter((m) => m.sample).length}명 별도 · 감지 {flagged.length}건</span></div>
     </div>
-    <div className="seg small-seg" role="group" aria-label="운영 메뉴">{([["verify", `인증 ${pending.length}`], ["reqs", "요청·결제"], ["dispute", `분쟁·신고 ${disputes.length + openRep.length}`], ["pay", `정산 ${payWait.length}`], ["set", "설정"]] as [AdminSub, string][]).map(([k, t]) => <button key={k} aria-pressed={sub === k} onClick={() => setSub(k)}>{t}</button>)}</div>
+    <div className="seg small-seg" role="group" aria-label="운영 메뉴">{([["verify", `인증 ${pending.length}`], ["reqs", "요청·결제"], ["dispute", `분쟁·신고 ${disputes.length + openRep.length}`], ["pay", `정산 ${payWait.length}`], ["mkt", "회원 동의"], ["set", "설정"]] as [AdminSub, string][]).map(([k, t]) => <button key={k} aria-pressed={sub === k} onClick={() => setSub(k)}>{t}</button>)}</div>
     {sub === "verify" ? <Verify c={c} /> : sub === "reqs" ? <>
       {flagged.length > 0 && <div className="card"><b>연락처·직거래·대필 감지 {flagged.length}건</b>{flagged.map((r) => <button key={r.id} className="pick" onClick={() => c.open("req", r.id)}><span className="small">{r.title}<br /><span className="tiny">{[...new Set(r.messages.flatMap((m) => m.flags || []))].join(" · ")}</span></span><span className="tiny">{r.mentorName || "미연결"}</span></button>)}</div>}
       <div className="card"><b>전체 요청 {reqs.length}건</b>
@@ -453,7 +458,7 @@ function Admin({ c }: { c: Ctx }) {
             {[["경고", (m: Mentor) => ({ ...m, warn: (m.warn || 0) + 1 })], ["활동 정지", (m: Mentor) => ({ ...m, status: "정지" as const, reason: x.reason })], ["기각", null]].map(([t, f]) =>
               <button key={t as string} className="btn ghost" disabled={c.busy} onClick={() => c.act(async () => { const m = mentors.find((y) => y.id === x.mentorId); if (f && m) await M.saveMentor((f as (m: Mentor) => Mentor)(m)); await M.saveReport({ ...x, status: "처리 완료", action: t as string }); })}>{t as string}</button>)}
           </div>}</div>) : <div className="notice">접수된 신고가 없어요.</div>}</>
-      : sub === "pay" ? <Payouts c={c} /> : <SettingsView c={c} />}
+      : sub === "pay" ? <Payouts c={c} /> : sub === "mkt" ? <Consents /> : <SettingsView c={c} />}
   </>;
 }
 function AdminReqActions({ c, r }: { c: Ctx; r: AdviceReq }) {
@@ -492,7 +497,7 @@ function Verify({ c }: { c: Ctx }) {
       <span className="tiny">승인·반려하면 서류 원본은 저장소에서 바로 삭제되고, 확인한 서류 종류·일시·확인자만 남아요.</span></div>; })
       : <div className="notice">심사할 신청이 없어요.</div>}
     <h2 className="sec">선배 관리</h2>
-    <div className="card">{list.filter((m) => m.status !== "심사 대기").map((m) => <div className="award" key={m.id}><span className="small">{m.name} · {m.univ} {m.dept}<span className="tiny"><br />{m.status}{m.warn ? ` · 경고 ${m.warn}회` : ""}{m.docLog ? ` · ${m.docLog.kinds.join("·")} 확인 ${m.docLog.checkedAt.slice(0, 10)}` : ""}</span></span>
+    <div className="card">{list.filter((m) => m.status !== "심사 대기").map((m) => <div className="award" key={m.id}><span className="small">{m.name} · {m.univ} {m.dept}<span className="tiny"><br />{m.status}{needReverify(m) ? " · 학기 재인증 필요" : ""}{m.warn ? ` · 경고 ${m.warn}회` : ""}{m.docLog ? ` · ${m.docLog.kinds.join("·")} 확인 ${m.docLog.checkedAt.slice(0, 10)}` : ""}</span></span>
       {m.status === "승인" ? <button onClick={() => c.act(() => M.saveMentor({ ...m, status: "정지", reason: "운영자 정지" }))}>정지</button> : m.status === "정지" ? <button onClick={() => c.act(() => M.saveMentor({ ...m, status: "승인", reason: undefined }))}>해제</button> : <span className="tiny">{m.status}</span>}</div>)}
       {!list.some((m) => m.status !== "심사 대기") && <span className="small muted">아직 심사한 선배가 없어요.</span>}</div>
   </>;
@@ -511,6 +516,30 @@ function Payouts({ c }: { c: Ctx }) {
         {p.status === "신청" ? <button className="btn ghost" disabled={c.busy} onClick={() => c.act(async () => { await M.savePayout({ ...p, status: "지급 완료", paidAt: now() }); for (const id of p.reqIds) { const r = c.mk.reqs.find((x) => x.id === id); if (r) await M.saveReq({ ...r, status: "정산 완료" }); } })}>지급 완료</button> : <span className="chip t-fit">지급 완료</span>}</div>) : <span className="small muted">정산 신청이 없어요.</span>}
       <button className="btn line block" disabled={!ps.length} onClick={csv}>정산 내역 엑셀(CSV) 받기 · 지급명세서 기초 자료</button>
       <span className="tiny">원천징수한 소득세·지방소득세는 지급한 달의 다음 달 10일까지 신고·납부하고, 간이지급명세서를 제출해요.</span></div>
+  </>;
+}
+// (주)엠굿 마케팅 활용 동의 회원 — 가입회원 DB 마케팅은 동의한 회원·채널에만
+function Consents() {
+  const [list, setList] = useState<{ email: string; c: S.Consent }[] | null>(null), [err, setErr] = useState("");
+  useEffect(() => { S.listConsents().then(setList).catch((x) => setErr((x as Error).message)); }, []);
+  if (err) return <div className="err">{err}</div>;
+  if (!list) return <div className="loading">불러오는 중…</div>;
+  const on = list.filter((x) => x.c.marketing), due = on.filter((x) => S.reconfirmDue(x.c));
+  const by = (ch: S.ConsentChannel) => on.filter((x) => x.c.channels.includes(ch)).length;
+  function csv() {
+    const rows = [["이메일", "동의", "받을 방법", "동의일", "재확인 기한", "철회일", "동의서 버전"], ...list!.map(({ email, c }) => [email, c.marketing ? "동의" : "미동의", c.channels.join("/"), c.at.slice(0, 10), c.marketing ? new Date(Date.parse(c.at) + 730 * 864e5).toISOString().slice(0, 10) : "", c.withdrawnAt?.slice(0, 10) || "", c.ver])];
+    const blob = new Blob(["\ufeff" + rows.map((r) => r.join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `미대갈래_마케팅동의회원_${now().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+  }
+  return <>
+    <div className="grid2">
+      <div className="stat"><span className="k">마케팅 동의 회원</span><span className="v" style={{ fontSize: 19 }}>{on.length}명</span><span className="tiny">응답 {list.length}명 중 {list.length ? Math.round((on.length / list.length) * 100) : 0}%</span></div>
+      <div className="stat"><span className="k">받을 방법</span><span className="small" style={{ margin: "6px 0" }}>{S.CONSENT_CHANNELS.map((ch) => `${ch} ${by(ch)}명`).join(" · ")}</span><span className="tiny">2년 재확인 필요 {due.length}명</span></div>
+    </div>
+    <div className="card"><b>{S.CONSENT_TEXT.company} 마케팅 활용 동의</b>
+      {on.length ? on.slice(0, 50).map(({ email, c }) => <div className="award" key={email}><span className="small">{email}<span className="tiny"><br />{c.channels.join(", ")} · {c.at.slice(0, 10)}{S.reconfirmDue(c) ? " · 재확인 필요" : ""}</span></span></div>) : <span className="small muted">아직 동의한 회원이 없어요.</span>}
+      <button className="btn line block" disabled={!list.length} onClick={csv}>동의 회원 엑셀(CSV) 받기</button>
+      <span className="tiny">동의한 회원에게, 고른 방법으로만 보내요. 광고 메시지는 제목 앞에 (광고), 보내는 곳·수신 거부 방법을 넣고, 밤 9시~아침 8시 발송은 따로 동의를 받아야 해요(정보통신망법 제50조). 동의일로부터 2년마다 수신 동의 여부를 다시 알려야 해요.</span></div>
   </>;
 }
 function SettingsView({ c }: { c: Ctx }) {

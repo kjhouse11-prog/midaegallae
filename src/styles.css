@@ -281,3 +281,11 @@ input.price{width:110px;border:1px solid var(--line);border-radius:10px;padding:
 .trow{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px}
 .trow .chip.plain{font-size:10.5px;padding:1px 6px;margin-left:4px}
 .tags.pick{display:flex;flex-wrap:wrap;gap:6px}
+
+/* v0.10 (주)엠굿 마케팅 활용 동의 */
+.check.all{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink)}
+.consent{display:flex;flex-direction:column;gap:6px}
+.consent details{padding-left:24px}
+.consent details summary{cursor:pointer;width:max-content}
+.consent .tbl th{white-space:nowrap;text-align:left;vertical-align:top;padding-right:8px}
+.consent .daypick{padding-left:24px}

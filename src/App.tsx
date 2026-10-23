@@ -35,15 +35,19 @@ export default function App() {
 function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState(""), [pw, setPw] = useState(""), [agree, setAgree] = useState(false), [age, setAge] = useState(false);
+  const [mkt, setMkt] = useState(false), [ch, setCh] = useState<S.ConsentChannel[]>([]);
+  const all = agree && age && mkt && ch.length === S.CONSENT_CHANNELS.length;
+  function setAll(v: boolean) { setAgree(v); setAge(v); setMkt(v); setCh(v ? [...S.CONSENT_CHANNELS] : []); }
   const [err, setErr] = useState(""), [msg, setMsg] = useState(""), [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
     e.preventDefault(); setErr(""); setMsg("");
     if (mode === "up" && (!agree || !age)) { setErr("필수 동의 항목에 체크해 주세요."); return; }
     setBusy(true);
     try {
-      if (mode === "up") { const r = await S.signUp(email.trim(), pw); if (r.needsConfirm) { setMsg("인증 메일을 보냈어요. 메일의 링크를 누른 뒤 로그인해 주세요."); setMode("in"); return; } }
+      const consent: S.Consent = { marketing: mkt, channels: mkt ? ch : [], at: new Date().toISOString(), ver: S.CONSENT_VER };
+      if (mode === "up") { const r = await S.signUp(email.trim(), pw, consent); if (r.needsConfirm) { setMsg("인증 메일을 보냈어요. 메일의 링크를 누른 뒤 로그인해 주세요."); setMode("in"); return; } }
       else await S.signIn(email.trim(), pw);
-      const u = await S.currentUser(); if (u) onDone(u);
+      const u = await S.currentUser(); if (u && mode === "up") await S.saveConsent(u, consent).catch(() => {}); if (u) onDone(u);
     } catch (x) { setErr((x as Error).message); } finally { setBusy(false); }
   }
   async function reset() { setErr(""); setMsg(""); if (!email) { setErr("이메일을 먼저 입력해 주세요."); return; } try { await S.resetPassword(email.trim()); setMsg("비밀번호 재설정 메일을 보냈어요."); } catch (x) { setErr((x as Error).message); } }
@@ -58,8 +62,10 @@ function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
       <label className="f">이메일<input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
       <label className="f">비밀번호 {mode === "up" && <span className="tiny">(6자 이상)</span>}<input id="pw" type="password" autoComplete={mode === "up" ? "new-password" : "current-password"} required minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} /></label>
       {mode === "up" && <>
+        <label className="check all"><input id="agree-all" type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} /><b>전체 동의 (선택 항목 포함)</b></label>
         <label className="check"><input id="agree" type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} /><span>(필수) 개인정보 수집·이용에 동의합니다. 내신·작품 등 입력 정보는 입시 진단에만 사용됩니다.</span></label>
         <label className="check"><input id="age" type="checkbox" checked={age} onChange={(e) => setAge(e.target.checked)} /><span>(필수) 만 14세 이상입니다. 만 14세 미만은 보호자 동의를 받은 뒤 가입해 주세요.</span></label>
+        <ConsentBox mkt={mkt} setMkt={setMkt} ch={ch} setCh={setCh} />
       </>}
       {err && <div className="err" role="alert">{err}</div>}{msg && <div className="ok-msg">{msg}</div>}
       <button className="btn block" disabled={busy}>{busy ? <span className="spinner" /> : mode === "in" ? "로그인" : "가입하기"}</button>
@@ -68,6 +74,39 @@ function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
       <p className="tiny">버전 {APP_VERSION}</p>
     </form>
   );
+}
+
+// (주)엠굿 마케팅 활용 동의 — 가입 화면과 마이 탭에서 같이 씀
+function ConsentBox({ mkt, setMkt, ch, setCh }: { mkt: boolean; setMkt: (v: boolean) => void; ch: S.ConsentChannel[]; setCh: (v: S.ConsentChannel[]) => void }) {
+  const T = S.CONSENT_TEXT;
+  return <div className="consent">
+    <label className="check"><input id="mkt" type="checkbox" checked={mkt} onChange={(e) => { setMkt(e.target.checked); setCh(e.target.checked ? (ch.length ? ch : [...S.CONSENT_CHANNELS]) : []); }} /><span>(선택) {T.company}의 사업 마케팅 활용에 동의합니다.</span></label>
+    <details><summary className="tiny">내용 보기</summary>
+      <table className="tbl tiny"><tbody>
+        <tr><th>받는 곳</th><td>{T.company}</td></tr><tr><th>항목</th><td>{T.items}</td></tr>
+        <tr><th>목적</th><td>{T.purpose}</td></tr><tr><th>보유 기간</th><td>{T.period}</td></tr>
+      </tbody></table>
+      <span className="tiny">동의하지 않아도 회원가입과 모든 기능을 이용할 수 있어요. 마이 탭에서 언제든 철회할 수 있고, 광고성 정보에는 (광고) 표시와 수신 거부 방법을 함께 안내해요. 동의는 2년마다 다시 확인해요.</span>
+    </details>
+    {mkt && <div className="daypick" role="group" aria-label="광고성 정보 받을 방법">{S.CONSENT_CHANNELS.map((c) => <button type="button" key={c} aria-pressed={ch.includes(c)} onClick={() => { const n = ch.includes(c) ? ch.filter((x) => x !== c) : [...ch, c]; setCh(n); if (!n.length) setMkt(false); }}>{c}</button>)}</div>}
+  </div>;
+}
+function ConsentCard({ user }: { user: AuthUser }) {
+  const [c, setC] = useState<S.Consent | null>(null), [mkt, setMkt] = useState(false), [ch, setCh] = useState<S.ConsentChannel[]>([]), [msg, setMsg] = useState(""), [err, setErr] = useState("");
+  useEffect(() => { S.loadConsent(user).then((x) => { setC(x); setMkt(!!x?.marketing); setCh(x?.channels || []); }).catch((x) => setErr((x as Error).message)); }, [user]);
+  const dirty = mkt !== !!c?.marketing || ch.join() !== (c?.channels || []).join();
+  async function save() {
+    setErr(""); setMsg("");
+    const at = new Date().toISOString(), n: S.Consent = mkt ? { marketing: true, channels: ch, at, ver: S.CONSENT_VER } : { marketing: false, channels: [], at: c?.at || at, ver: S.CONSENT_VER, withdrawnAt: at };
+    try { await S.saveConsent(user, n); setC(n); setMsg(mkt ? "동의 내용을 저장했어요." : "마케팅 활용 동의를 철회했어요. 앞으로 광고성 정보를 보내지 않아요."); } catch (x) { setErr((x as Error).message); }
+  }
+  return <div className="card"><b>마케팅 활용 동의</b>
+    <span className="small muted">{c?.marketing ? `동의함 · ${c.channels.join(", ")} · ${c.at.slice(0, 10)}` : c?.withdrawnAt ? `철회함 · ${c.withdrawnAt.slice(0, 10)}` : "동의하지 않음"}</span>
+    {S.reconfirmDue(c) && <div className="notice">동의한 지 2년이 지났어요. 계속 소식을 받으시려면 아래에서 다시 저장해 주세요.</div>}
+    <ConsentBox mkt={mkt} setMkt={setMkt} ch={ch} setCh={setCh} />
+    {err && <div className="err" role="alert">{err}</div>}{msg && <div className="ok-msg">{msg}</div>}
+    <button className="btn line block" disabled={!dirty && !S.reconfirmDue(c)} onClick={save}>저장</button>
+  </div>;
 }
 
 // ---------------- 메인 ----------------
@@ -398,6 +437,7 @@ function Me({ user, profile, isNew, awards, reload, onSignOut }: { user: AuthUse
         <span className="tiny">{b.basis}{b.source ? <> · 출처 <a href={b.source.url} target="_blank" rel="noopener">{b.source.name}</a></> : null}</span>
       </div>)}</div>
       <span className="tiny">특전은 해마다 바뀌어요. 지원 전 반드시 해당 대학의 당해 모집요강과 대회 공고를 확인하세요. 특전 정보는 「월간 미대입시」 편집부가 계속 보완합니다.</span></div>}
+    {!isNew && <ConsentCard user={user} />}
     <button className="btn line block" onClick={onSignOut}>로그아웃</button>
     <p className="tiny">버전 {APP_VERSION}</p>
   </>;

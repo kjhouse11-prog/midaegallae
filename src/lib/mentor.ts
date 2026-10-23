@@ -20,12 +20,15 @@ export const KINDS: Record<AdviceKind, { label: string; ex: string; form: string
 export const MENTOR_ROLES = ["미대 재학생", "학원 강사", "학원 원장", "대학 교수"] as const;
 export type MentorRole = (typeof MENTOR_ROLES)[number];
 // 역할별 인증 서류 — 재학생은 재학증명서·성적증명서 필수(윤대표 지시), 합격증은 있으면 추가
+// 학원법 제14조의2: 대학 재학생은 개인과외교습 신고 면제, 휴학생·강사 개인 교습은 신고 대상 → 재학생은 학기마다 재학 재확인
 export const DOC_RULES: Record<MentorRole, { need: string[]; optional: string[] }> = {
   "미대 재학생": { need: ["재학증명서", "성적증명서"], optional: ["합격증"] },
-  "학원 강사": { need: ["재직증명서", "졸업증명서"], optional: ["경력증명서"] },
+  "학원 강사": { need: ["재직증명서", "졸업증명서"], optional: ["개인과외교습자 신고증명서", "경력증명서"] },
   "학원 원장": { need: ["학원 등록증", "졸업증명서"], optional: ["경력증명서"] },
   "대학 교수": { need: ["재직증명서"], optional: [] },
 };
+export const REVERIFY_DAYS = 183; // 재학 인증 유효 기간(한 학기) — 지나면 재학증명서 다시 제출
+export const needReverify = (m: Mentor, now = Date.now()) => m.role === "미대 재학생" && !m.sample && !!m.docLog && now - new Date(m.docLog.checkedAt).getTime() > REVERIFY_DAYS * 864e5;
 export const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 export type MentorStatus = "심사 대기" | "승인" | "반려" | "정지";
