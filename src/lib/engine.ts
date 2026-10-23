@@ -1,4 +1,4 @@
-// 합격 가능성 판정 엔진 v0.4 — 대학 리스트 추천 · 특정 대학/학과 판정
+// 합격 가능성 판정 엔진 v0.5 (v0.11 전형 분류: 교과·종합·실기·포트폴리오·면접·정시) — 대학 리스트 추천 · 특정 대학/학과 판정
 // 입력: 학생 정보(내신·등급제·모의고사·학원 기간·수상·작품 진단)  ×  모집단위 데이터(programs.json)
 // 출력: 안정 / 적정 / 소신 / 상향 + 근거 + 주의사항 + 데이터 신뢰도
 // ※ 실기 기준점(P_req)은 경쟁률·대학 선호도로 만든 추정치입니다. 실제 합격선이 아닙니다.
@@ -10,7 +10,13 @@ export interface Program {
   csat_min: string; comp: number | null; gpa_best: number | null; gpa_avg: number | null; gpa_cut70: number | null;
   gpa_min: number | null; gpa_basis: string; gpa_ref: number | null; gpa_ref_est: boolean;
   csat_pct: number | null; csat_pm: number | null; eng: number | null; csat_areas: string; src: string; verify: string; note: string;
+  cat?: TrackCat; itv?: boolean;   // v0.11 tracks.json 행: 전형 분류·면접 포함 여부
 }
+// ---------- 전형 분류 ----------
+export type TrackCat = "교과" | "종합" | "실기" | "포트폴리오" | "정시";
+export const catOf = (p: Program): TrackCat => p.cat ?? (p.round === "정시" ? "정시" : p.ttype === "수시학종" ? "종합" : p.ttype === "수시교과" ? "교과"
+  : p.ttype === "수시포트폴리오" || /포트폴리오/.test(p.exam + p.track) ? "포트폴리오" : "실기");
+export const hasInterview = (p: Program) => p.itv ?? /면접/.test(p.method);
 export type AwardLevel = "대상" | "금상" | "은상" | "동상" | "장려상" | "특선" | "입선" | "기타";
 export type AwardScope = "전국" | "지역" | "교내";
 export interface StudentAward { title: string; level?: AwardLevel; scope?: AwardScope }
@@ -65,7 +71,8 @@ const ownSel = (p: Program) => p.csat_pct != null ? p.csat_pct : p.gpa_ref != nu
 let UNIV_TIER: Map<string, number> | null = null;
 export function setUniverse(list: Program[]) {
   const m = new Map<string, number[]>();
-  list.forEach((p) => { const v = ownSel(p); if (v != null) m.set(p.univ, [...(m.get(p.univ) || []), v]); });
+  // 교과 전형 등급컷은 실기·학종보다 훨씬 높게 나와 대학 선호도 추정에서 뺌 (같은 대학 다른 전형 난이도가 과하게 오르지 않도록)
+  list.forEach((p) => { if (p.ttype === "수시교과" || p.verify.startsWith("추정")) return; const v = ownSel(p); if (v != null) m.set(p.univ, [...(m.get(p.univ) || []), v]); });
   UNIV_TIER = new Map([...m].map(([k, v]) => [k, Math.max(...v)]));
 }
 export function selectivity(p: Program) {
@@ -84,7 +91,7 @@ export function judge(p: Program, s: Student): Judgement {
   const mockEst = s.mock == null; const mock = s.mock ?? Math.round(100 - topPctOf(s.gpa, sys));
   const pr = practicalIndex(s), req = requiredPractical(p);
   const reasons: string[] = [], warnings: string[] = [], parts: Judgement["parts"] = [];
-  const isHak = p.ttype === "수시학종";
+  const isHak = p.ttype === "수시학종", isGyo = p.ttype === "수시교과";
   const wG = p.wG + (isHak ? p.wO : 0), wP = p.wP, wC = p.wC;
 
   // 내신
@@ -122,12 +129,17 @@ export function judge(p: Program, s: Student): Judgement {
     else reasons.push("1단계(학생부) 통과 가능권 → 2단계 실기에서 결정돼요.");
   }
   // 수능최저
-  const mm = p.csat_min.match(/(\d)개 영역 등급합 (\d+)/);
+  const mm = p.csat_min.match(/(\d)개 영역 등급합 (\d+)/) || p.csat_min.match(/(1)개 영역 (\d)등급/);
   if (mm) {
     const need = +mm[2] / +mm[1], mine = pctToCsatGrade(mock);
     if (mine > need + 0.3) { cap = cap || "소신"; warnings.push(`수능최저(${p.csat_min}) 충족이 불확실해요: 필요 평균 ${r1(need)}등급, 내 예상 ${r1(mine)}등급${mockEst ? "(추정)" : ""}.`); }
     else reasons.push(`수능최저(${p.csat_min}) 충족 가능권 (내 예상 ${r1(mine)}등급).`);
   }
+  if (isGyo) reasons.push(`학생부교과 전형: 내신 등급으로 선발${p.wO > 0 ? `하고 면접 ${Math.round((p.wO / (p.wG + p.wO || 1)) * 100)}%를 더해요` : "해요"}.`);
+  if ((isGyo || catOf(p) === "포트폴리오") && p.wO > 0) warnings.push(`면접 ${Math.round((p.wO / (p.wP + p.wG + p.wO || 1)) * 100)}% 반영 — 판정은 내신${p.wP ? "·실기" : ""}만으로 했어요. 면접 준비에 따라 한 단계 오르내릴 수 있어요.`);
+  if (catOf(p) === "포트폴리오") warnings.push("포트폴리오 전형은 제출 작품을 정성평가해요. 실기 지수는 작품 진단 점수로 추정한 값이에요.");
+  if (/지역인재/.test(p.note)) warnings.push("지역인재 전형: 해당 지역 고교 졸업(예정)자만 지원할 수 있어요.");
+  if (/학교장 추천/.test(p.note)) warnings.push("학교장 추천 전형: 고교별 추천 인원 제한이 있어요. 학교 진학부에 먼저 확인하세요.");
   if (isHak) warnings.push("학생부종합은 정성평가예요. 등급은 참고일 뿐이고, 미술활동보고서·포트폴리오·면접 준비가 당락을 좌우해요.");
   if (p.wP === 100 && !p.stage1 && p.round === "수시") reasons.push("실기 100% 전형이라 내신은 반영되지 않아요.");
   if (p.wP === 100 && p.stage1) reasons.push("1단계는 학생부로 거르고, 최종 선발은 실기 100%예요.");
@@ -139,7 +151,7 @@ export function judge(p: Program, s: Student): Judgement {
   let v: Verdict = z >= 0.7 ? "안정" : z >= 0 ? "적정" : z >= -0.8 ? "소신" : "상향";
   if (cap && order.indexOf(v) < order.indexOf(cap)) v = cap;
   // '안정'은 근거가 충분할 때만: 실기 비중이 큰데 작품 진단 없음 / 수능을 내신으로 추정 / 입결 없음 / 학종(정성평가) → 최대 '적정'
-  if (v === "안정" && ((p.wP >= 60 && pr.est) || (wC > 0 && mockEst) || p.verify.includes("미공개") || p.verify.startsWith("확인") || isHak)) v = "적정";
+  if (v === "안정" && ((p.wP >= 60 && pr.est) || (wC > 0 && mockEst) || p.verify.includes("미공개") || p.verify.startsWith("확인") || p.verify.startsWith("추정") || isHak)) v = "적정";
   const data = p.verify.startsWith("입결 공개") || p.verify === "내신 미반영" ? "공식 입결" : p.verify.startsWith("학원") ? "학원 추정" : "입결 없음";
   return { verdict: v, z: Math.round(z * 100) / 100, reasons, warnings, data, parts, practical: { v: pr.v, req, est: pr.est } };
 }
@@ -148,16 +160,20 @@ const ORDER: Verdict[] = ["안정", "적정", "소신", "상향"];
 // 희망 전공 ↔ 학과 분류 매칭. 만화애니메이션·웹툰애니메이션처럼 겹치는 학과는 만화·웹툰과 애니메이션 양쪽에 보여요
 export const majorMatch = (p: Program, major: string) => p.major === major || (p.major === "디자인(통합)" && /디자인|미디어|공예/.test(major)) ||
   (major === "만화·웹툰" && /만화|웹툰/.test(p.dept)) || (major === "애니메이션" && /애니/.test(p.dept));
-export interface Filter { major?: string; regions?: string[]; round?: "수시" | "정시" | "전체"; ttypes?: string[]; }
+export interface Filter { major?: string; regions?: string[]; round?: "수시" | "정시" | "전체"; ttypes?: string[]; cats?: string[] }
+// 전형 필터 — '면접'은 분류가 아니라 면접이 들어간 수시 전형 전체
+export const inCats = (p: Program, cats?: string[]) => !cats?.length || cats.some((c) => (c === "면접" ? p.round === "수시" && hasInterview(p) : catOf(p) === c));
 export function recommend(list: Program[], s: Student, f: Filter = {}) {
   if (!UNIV_TIER) setUniverse(list);
   return list
     .filter((p) => (!f.major || f.major === "전체" || majorMatch(p, f.major)) &&
-      (!f.regions?.length || f.regions.includes(p.region)) && (!f.round || f.round === "전체" || p.round === f.round) && (!f.ttypes?.length || f.ttypes.includes(p.ttype)))
+      (!f.regions?.length || f.regions.includes(p.region)) && (!f.round || f.round === "전체" || p.round === f.round) && (!f.ttypes?.length || f.ttypes.includes(p.ttype)) && inCats(p, f.cats))
     .map((p) => ({ p, j: judge(p, s) }))
     // 판정 구간 순(안정→상향), 같은 구간 안에서는 선호도(난이도) 높은 대학부터
     .sort((a, b) => ORDER.indexOf(a.j.verdict) - ORDER.indexOf(b.j.verdict) || selectivity(b.p) - selectivity(a.p));
 }
+// 화면 표기: '안정'은 하향 지원권이라 '하향(안정)'으로 보여 줌
+export const VERDICT_LABEL: Record<Verdict, string> = { 안정: "하향(안정)", 적정: "적정", 소신: "소신", 상향: "상향" };
 export const VERDICT_STYLE: Record<Verdict, { c: string; d: string }> = {
   안정: { c: "t-safe", d: "전년도 합격자보다 앞서요" }, 적정: { c: "t-fit", d: "합격자 평균 수준이에요" },
   소신: { c: "t-hope", d: "약점 보완 시 가능해요" }, 상향: { c: "t-reach", d: "현재로선 도전 지원이에요" },
