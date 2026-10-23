@@ -7,12 +7,15 @@ import { BENEFITS, benefitFor } from "./lib/benefits";
 import * as S from "./lib/store";
 import type { Artwork, Award, AuthUser, Profile } from "./lib/store";
 import { NOW, academyMonths, buildPlan, demoAnalysis, demoSolidAnalysis, examDate, gpaSystem, priorities, toStudent, weekTasks, workAvg, type Ctx } from "./lib/calc";
-import { judge, majorMatch, practicalIndex, recommend, setUniverse, toGpa9, VERDICT_STYLE, type Judgement, type Program, type Verdict } from "./lib/engine";
+import { catOf, judge, majorMatch, practicalIndex, recommend, setUniverse, toGpa9, VERDICT_LABEL, VERDICT_STYLE, type Judgement, type Program, type Verdict } from "./lib/engine";
 import DATA from "./lib/programs.json";
+import { catLabel, TRACK_CATS, TRACK_DATA } from "./lib/strategy";
+import { HomeTrackCard, StrategyPanel, UnivTracksCard, useTrackPref } from "./tracks";
 import { AdBanner, Icon, InstallBar, NumInput, PartBar, Radar } from "./ui";
 import { APP_VERSION } from "./config";
 
-const PROGRAMS = DATA.programs as Program[];
+// 학과 카드(programs.json) + v0.11 전형 데이터(tracks.json)의 교과·종합·포트폴리오·추가 실기·정시 모집단위
+const PROGRAMS = [...(DATA.programs as Program[]), ...TRACK_DATA.programs];
 setUniverse(PROGRAMS);
 const byId = (id: string) => PROGRAMS.find((p) => p.id === id);
 const fullName = (p: Program) => `${p.univ}${p.campus ? `(${p.campus})` : ""}`;
@@ -116,6 +119,7 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const [target, setTargetState] = useState<string>(() => { try { return localStorage.getItem(TARGET_KEY) || ""; } catch { return ""; } });
   const [detail, setDetail] = useState<string | null>(null);
   const [workDetail, setWorkDetail] = useState<string | null>(null);
+  const [matchSub, setMatchSub] = useState<MatchSub>("list");
   const [planSub, setPlanSub] = useState<PlanSub>("plan"), [acadSub, setAcadSub] = useState<AcadSub>("find"), [mentorSub, setMentorSub] = useState<MentorSub>("find");
   const setTarget = (id: string) => { setTargetState(id); try { localStorage.setItem(TARGET_KEY, id); } catch { /* */ } };
 
@@ -126,7 +130,7 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   useEffect(() => { reload(); }, [reload]);
   const go = (t: Tab, sub?: string) => {
     setTab(t); setDetail(null); setWorkDetail(null); window.scrollTo(0, 0);
-    if (t === "plan" && sub) setPlanSub(sub as PlanSub); if (t === "acad" && sub) setAcadSub(sub as AcadSub); if (t === "mentor" && sub) setMentorSub(sub as MentorSub);
+    if (t === "match" && sub) setMatchSub(sub as MatchSub); if (t === "plan" && sub) setPlanSub(sub as PlanSub); if (t === "acad" && sub) setAcadSub(sub as AcadSub); if (t === "mentor" && sub) setMentorSub(sub as MentorSub);
   };
   const open = (id: string) => { setTab("match"); setDetail(id); window.scrollTo(0, 0); };
 
@@ -137,7 +141,7 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const view = needProfile && tab !== "me" ? <Onboard go={() => go("me")} /> :
     tab === "home" ? <Home user={user} ctx={ctx} target={tp} go={go} open={open} /> :
     tab === "works" ? <Works user={user} works={works} reload={reload} detail={workDetail} setDetail={setWorkDetail} defaultField={p.field} /> :
-    tab === "match" ? (detail && byId(detail) ? <ProgramView u={byId(detail)!} ctx={ctx} back={() => setDetail(null)} target={target} setTarget={setTarget} /> : <Match ctx={ctx} open={open} />) :
+    tab === "match" ? (detail && byId(detail) ? <ProgramView u={byId(detail)!} ctx={ctx} back={() => setDetail(null)} target={target} setTarget={setTarget} open={open} /> : <Match user={user} ctx={ctx} open={open} mode={matchSub} setMode={setMatchSub} />) :
     tab === "plan" ? <Planner user={user} ctx={ctx} target={tp} road={<Road ctx={ctx} u={tp} go={go} />} sub={planSub} setSub={setPlanSub} go={(t) => go(t as Tab)} /> :
     tab === "mentor" ? <MentorTab user={user} p={p} works={works} sub={mentorSub} setSub={setMentorSub} /> :
     tab === "acad" ? <AcademyTab user={user} p={p} works={works} sub={acadSub} setSub={setAcadSub} go={(t) => go(t as Tab)} /> :
@@ -172,15 +176,16 @@ function Home({ user, ctx, target, go, open }: { user: AuthUser; ctx: Ctx; targe
     <h1 className="page">{ctx.p.name}님, {ctx.p.major} 입시를<br />함께 준비해요</h1>
     <div className="card hero">
       <div className="row between"><span className="small muted">{ctx.p.major} 관련 {pool.length}개 모집단위 판정</span><span className="tiny" style={{ color: "inherit", opacity: .8 }}>2026 입결 기준</span></div>
-      <div className="grid2" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>{VERDICTS.map((k) => <div key={k}><div className="num" style={{ fontSize: 26 }}>{cnt[k]}</div><div className="small">{k}</div></div>)}</div>
+      <div className="grid2" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>{VERDICTS.map((k) => <div key={k}><div className="num" style={{ fontSize: 26 }}>{cnt[k]}</div><div className="small">{VERDICT_LABEL[k]}</div></div>)}</div>
       <button className="btn" style={{ background: "var(--accent-ink)", color: "var(--accent)" }} onClick={() => go("match")}>추천 대학 리스트 · 학과 판정</button>
     </div>
+    <HomeTrackCard user={user} list={PROGRAMS} st={st} major={ctx.p.major} go={() => go("match", "strategy")} />
     <div className="grid2">
       <div className="stat"><span className="k">실기 지수{P.est ? " (추정)" : ""}</span><span className="v">{P.v}</span><span className="tiny">{P.est ? `학원 ${academyMonths(ctx.p)}개월 · 수상 ${ctx.awards.length}건으로 추정` : "작품 진단 반영"}</span></div>
       <div className="stat"><span className="k">내신 (9등급 환산)</span><span className="v">{toGpa9(+ctx.p.gpa, sys).toFixed(1)}</span><span className="tiny">{sys}등급제 {ctx.p.gpa}등급{ctx.p.school ? ` · ${ctx.p.school}` : ""}</span></div>
     </div>
     {target && tj && <><h2 className="sec">목표 대학</h2>
-      <button className="card-btn" onClick={() => open(target.id)}><div className="card"><div className="row between"><b>{fullName(target)} {target.dept}</b><span className={`chip ${VERDICT_STYLE[tj.verdict].c}`}>{tj.verdict}</span></div>
+      <button className="card-btn" onClick={() => open(target.id)}><div className="card"><div className="row between"><b>{fullName(target)} {target.dept}</b><span className={`chip ${VERDICT_STYLE[tj.verdict].c}`}>{VERDICT_LABEL[tj.verdict]}</span></div>
         <div className="small muted">{target.track} · 실기까지 약 <b className="num">D-{left}</b> (예상)</div></div></button></>}
     <div className="quick4">
       <button onClick={() => go("acad", "find")}><span className="qi">🏫</span>나에게 맞는<br />학원 찾기</button>
@@ -281,33 +286,38 @@ function WorkView({ w, back, reload }: { w: Artwork; back: () => void; reload: (
 }
 
 // ---------------- 대학찾기: 추천 리스트 / 학과 판정 ----------------
-const TT: [string, string, string[]][] = [["all", "전체", []], ["susi", "수시 실기", ["수시실기일괄", "수시실기다단계"]], ["hak", "수시 학종", ["수시학종"]], ["jung", "정시", ["정시실기", "정시비실기"]]];
+// 전형 필터: 전체 · 관심 전형 · 교과 · 종합 · 실기 · 포트폴리오 · 면접 · 정시
+type MatchSub = "list" | "strategy" | "one";
+const TT: [string, string][] = [["all", "전체"], ["pref", "관심 전형"], ...TRACK_CATS.map((c) => [c.k, c.label] as [string, string])];
 const AREA: Record<string, string[]> = { "선호 지역": [], 전국: [], 서울: ["서울"], "경기·인천": ["경기", "인천"], 지방: ["강원", "대전", "세종", "충북", "충남", "광주", "전북", "전남", "대구", "경북", "부산", "울산", "경남", "제주"] };
-function Match({ ctx, open }: { ctx: Ctx; open: (id: string) => void }) {
-  const [mode, setMode] = useState<"list" | "one">("list");
-  const [tt, setTt] = useState("all"), [area, setArea] = useState(ctx.p.regions.length ? "선호 지역" : "전국"), [mine, setMine] = useState(true), [vf, setVf] = useState<"전체" | Verdict>("전체");
+function Match({ user, ctx, open, mode, setMode }: { user: AuthUser; ctx: Ctx; open: (id: string) => void; mode: MatchSub; setMode: (m: MatchSub) => void }) {
+  const [pref] = useTrackPref(user);
+  const [tt, setTt] = useState(pref.length ? "pref" : "all"), [area, setArea] = useState(ctx.p.regions.length ? "선호 지역" : "전국"), [mine, setMine] = useState(true), [vf, setVf] = useState<"전체" | Verdict>("전체");
   const st = useMemo(() => toStudent(ctx), [ctx]);
-  const all = useMemo(() => recommend(PROGRAMS, st, { ttypes: TT.find((x) => x[0] === tt)![2], regions: area === "선호 지역" ? ctx.p.regions : AREA[area] }).filter((x) => !mine || majorMatch(x.p, ctx.p.major)), [st, tt, area, mine, ctx.p.major]);
+  const cats = tt === "all" ? [] : tt === "pref" ? pref : [tt];
+  const regions = area === "선호 지역" ? ctx.p.regions : AREA[area];
+  const all = useMemo(() => recommend(PROGRAMS, st, { cats, regions }).filter((x) => !mine || majorMatch(x.p, ctx.p.major)), [st, cats.join(), area, mine, ctx.p.major]);
   const list = vf === "전체" ? all : all.filter((x) => x.j.verdict === vf);
   return <>
     <h1 className="page">대학찾기</h1>
-    <div className="seg" role="group" aria-label="보기"><button aria-pressed={mode === "list"} onClick={() => setMode("list")}>추천 대학 리스트</button><button aria-pressed={mode === "one"} onClick={() => setMode("one")}>특정 학과 판정</button></div>
-    {mode === "one" ? <OneCheck ctx={ctx} open={open} /> : <>
+    <div className="seg" role="group" aria-label="보기"><button aria-pressed={mode === "list"} onClick={() => setMode("list")}>추천 리스트</button><button aria-pressed={mode === "strategy"} onClick={() => setMode("strategy")}>전형별 전략</button><button aria-pressed={mode === "one"} onClick={() => setMode("one")}>대학·학과 판정</button></div>
+    {mode === "one" ? <OneCheck ctx={ctx} open={open} /> : mode === "strategy" ? <StrategyPanel user={user} list={PROGRAMS} st={st} major={mine ? ctx.p.major : undefined} regions={regions} open={open} fullName={fullName} /> : <>
       <p className="lead">내 내신·실기 지수·모의고사를 대학별 반영비율로 환산해 2026학년도 합격자와 비교했어요.</p>
-      <div className="seg" role="group" aria-label="전형">{TT.map(([k, t]) => <button key={k} aria-pressed={tt === k} onClick={() => setTt(k)}>{t}</button>)}</div>
+      <div className="tags pick" role="group" aria-label="전형">{TT.filter(([k]) => k !== "pref" || pref.length).map(([k, t]) => <button key={k} aria-pressed={tt === k} onClick={() => setTt(k)}>{t}</button>)}</div>
+      {tt === "pref" && <span className="tiny">관심 전형: {pref.map(catLabel).join(" · ")} — 전형별 전략에서 바꿀 수 있어요</span>}
       <div className="filters">
         <select aria-label="지역" value={area} onChange={(e) => setArea(e.target.value)}>{Object.keys(AREA).filter((a) => a !== "선호 지역" || ctx.p.regions.length).map((a) => <option key={a}>{a}</option>)}</select>
         <select aria-label="전공" value={mine ? "mine" : "all"} onChange={(e) => setMine(e.target.value === "mine")}><option value="mine">{ctx.p.major} 관련만</option><option value="all">모든 전공</option></select>
-        <select aria-label="판정" value={vf} onChange={(e) => setVf(e.target.value as "전체" | Verdict)}>{["전체", ...VERDICTS].map((v) => <option key={v}>{v}</option>)}</select>
+        <select aria-label="판정" value={vf} onChange={(e) => setVf(e.target.value as "전체" | Verdict)}>{["전체", ...VERDICTS].map((v) => <option key={v} value={v}>{v === "전체" ? v : VERDICT_LABEL[v as Verdict]}</option>)}</select>
       </div>
-      <div className="tiny">{all.length}개 중 {list.length}개 · 안정 {all.filter((x) => x.j.verdict === "안정").length} · 적정 {all.filter((x) => x.j.verdict === "적정").length} · 소신 {all.filter((x) => x.j.verdict === "소신").length} · 상향 {all.filter((x) => x.j.verdict === "상향").length}</div>
+      <div className="tiny">{all.length}개 중 {list.length}개 · 하향(안정) {all.filter((x) => x.j.verdict === "안정").length} · 적정 {all.filter((x) => x.j.verdict === "적정").length} · 소신 {all.filter((x) => x.j.verdict === "소신").length} · 상향 {all.filter((x) => x.j.verdict === "상향").length}</div>
       {list.length ? list.map(({ p, j }) => <button key={p.id} className="card-btn" onClick={() => open(p.id)}><div className="card uni">
-        <div className="row between"><span className="name">{fullName(p)}</span><span className={`chip ${VERDICT_STYLE[j.verdict].c}`}>{j.verdict}</span></div>
-        <div className="small muted">{p.dept} · {p.track} · {p.region}</div>
+        <div className="row between"><span className="name">{fullName(p)}</span><span className={`chip ${VERDICT_STYLE[j.verdict].c}`}>{VERDICT_LABEL[j.verdict]}</span></div>
+        <div className="small muted">{p.dept} · {catLabel(catOf(p))}{p.round === "수시" && (p.itv ?? /면접/.test(p.method)) ? "+면접" : ""} · {p.track} · {p.region}</div>
         <div className="row between tiny"><span>{p.method}</span><DataBadge j={j} /></div></div></button>)
         : <div className="notice">이 조건에 맞는 모집단위가 없어요. 필터를 바꿔 보세요.</div>}
     </>}
-    <p className="tiny">대학 데이터: {DATA.basis} · 조사 {DATA.asof}. 내신 입결은 대학 발표(학원 정리), 정시 수능 성적대는 학원 추정치예요. 실기 기준점은 경쟁률로 만든 추정치예요. 원서 전 반드시 대학 모집요강을 확인하세요.</p>
+    <p className="tiny">대학 데이터: {DATA.basis} · 조사 {DATA.asof} / 전형·모집인원: {TRACK_DATA.basis}. 내신 입결은 대학 발표(학원 정리), 정시 수능 성적대는 학원 추정치예요. 실기 기준점은 경쟁률로 만든 추정치예요. 원서 전 반드시 대학 모집요강을 확인하세요.</p>
   </>;
 }
 function OneCheck({ ctx, open }: { ctx: Ctx; open: (id: string) => void }) {
@@ -322,11 +332,12 @@ function OneCheck({ ctx, open }: { ctx: Ctx; open: (id: string) => void }) {
     <input className="search" placeholder="대학 이름 (예: 성신여대, 홍익대)" value={q} onChange={(e) => { setQ(e.target.value); setUni(null); }} aria-label="대학 검색" />
     {!uni && hit.length > 0 && <div className="plist">{hit.slice(0, 12).map((u) => <button key={u} className="pick" onClick={() => setUni(u)}><span>{u}</span><span className="tiny">{PROGRAMS.filter((p) => fullName(p) === u).length}개 전형</span></button>)}</div>}
     {q && !hit.length && <div className="notice">아직 수록되지 않은 대학이에요. 편집부가 전국 대학을 순서대로 입력하고 있어요.</div>}
+    {uni && <UnivTracksCard ukey={uni} st={st} byId={byId} open={open} />}
     {uni && <><h2 className="sec">{uni} — 학과·전형 선택</h2><div className="plist">{rows.map(({ p, j }) =>
-      <button key={p.id} className="pick" onClick={() => open(p.id)}><span><b className="small">{p.dept}</b><br /><span className="tiny">{p.track} · {p.method}</span></span><span className={`chip ${VERDICT_STYLE[j.verdict].c}`}>{j.verdict}</span></button>)}</div></>}
+      <button key={p.id} className="pick" onClick={() => open(p.id)}><span><b className="small">{p.dept}</b><br /><span className="tiny">{p.track} · {p.method}</span></span><span className={`chip ${VERDICT_STYLE[j.verdict].c}`}>{VERDICT_LABEL[j.verdict]}</span></button>)}</div></>}
   </>;
 }
-function ProgramView({ u, ctx, back, target, setTarget }: { u: Program; ctx: Ctx; back: () => void; target: string; setTarget: (id: string) => void }) {
+function ProgramView({ u, ctx, back, target, setTarget, open }: { u: Program; ctx: Ctx; back: () => void; target: string; setTarget: (id: string) => void; open: (id: string) => void }) {
   const st = toStudent(ctx); const j = judge(u, st); const pr = priorities(j).filter((x) => x.margin < 0);
   const tot = u.wP + u.wG + u.wC + u.wO || 1, pct = (x: number) => Math.round((x / tot) * 100);
   const g = (x: number | null) => (x == null ? "–" : x);
@@ -334,20 +345,21 @@ function ProgramView({ u, ctx, back, target, setTarget }: { u: Program; ctx: Ctx
     <button className="back" onClick={back}>← 목록</button>
     <div><h1 className="page">{fullName(u)}<br /><span style={{ fontSize: 18 }}>{u.dept}</span></h1><div className="small muted">{u.track} · {u.region}{u.quota ? ` · ${u.quota}명` : ""}{u.comp ? ` · 2026 경쟁률 ${u.comp}:1` : ""}</div></div>
     <div className="card"><div className="row between"><span className="small muted">지금 내 상황에서</span><DataBadge j={j} /></div>
-      <div className="row between"><span className={`verdict`} style={{ color: `var(--${j.verdict === "상향" ? "reach" : j.verdict === "소신" ? "warn" : j.verdict === "적정" ? "good" : "accent"})` }}>{j.verdict}</span><span className="small muted">{VERDICT_STYLE[j.verdict].d}</span></div>
+      <div className="row between"><span className={`verdict`} style={{ color: `var(--${j.verdict === "상향" ? "reach" : j.verdict === "소신" ? "warn" : j.verdict === "적정" ? "good" : "accent"})` }}>{VERDICT_LABEL[j.verdict]}</span><span className="small muted">{VERDICT_STYLE[j.verdict].d}</span></div>
       {j.parts.map((x) => <PartBar key={x.k} k={x.k} w={pct(x.w)} mine={x.mine} need={x.need} margin={x.margin} />)}
     </div>
     <div className="card"><b>판정 근거</b><ul className="list small">{j.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
       {j.warnings.length > 0 && <><b className="small">주의</b><ul className="warn-list small">{j.warnings.map((r) => <li key={r}>{r}</li>)}</ul></>}</div>
     {pr.length > 0 && <div className="card"><b>무엇을 먼저 올릴까</b><ul className="list small">{pr.map((x) => <li key={x.k}>{x.k === "실기" ? `실기: 지수 ${j.practical.v} → ${j.practical.req}. ${u.exam && !/없음|확인/.test(u.exam) ? `${u.exam} (${u.paper})` : "주력 종목"} 시간 재고 주 2회 완성, 작품을 올려 AI 진단 받기` : x.k === "내신" ? `내신: 기준 ${x.need}등급까지 올리기. 반영 교과는 ${u.gpa_subjects}` : `수능: 백분위 ${x.need} 목표. 반영 영역 ${u.csat_areas}`}</li>)}</ul></div>}
     <div className="card"><b>전형 정보 (2027학년도)</b>
-      <div className="weights">{u.wP > 0 && <span className="w-p" style={{ width: `${pct(u.wP)}%` }}>실기 {pct(u.wP)}%</span>}{u.wG > 0 && <span className="w-g" style={{ width: `${pct(u.wG)}%` }}>{u.ttype === "수시학종" ? "서류" : "내신"} {pct(u.wG)}%</span>}{u.wC > 0 && <span className="w-c" style={{ width: `${pct(u.wC)}%` }}>수능 {pct(u.wC)}%</span>}{u.wO > 0 && <span className="w-c" style={{ width: `${pct(u.wO)}%`, opacity: .6 }}>면접 {pct(u.wO)}%</span>}</div>
+      <div className="weights">{u.wP > 0 && <span className="w-p" style={{ width: `${pct(u.wP)}%` }}>실기 {pct(u.wP)}%</span>}{u.wG > 0 && <span className="w-g" style={{ width: `${pct(u.wG)}%` }}>{u.ttype === "수시학종" ? "서류" : "내신"} {pct(u.wG)}%</span>}{u.wC > 0 && <span className="w-c" style={{ width: `${pct(u.wC)}%` }}>수능 {pct(u.wC)}%</span>}{u.wO > 0 && <span className={/면접/.test(u.method) ? "w-o" : "w-s"} style={{ width: `${pct(u.wO)}%` }}>{/면접/.test(u.method) ? "면접" : "서류"} {pct(u.wO)}%</span>}</div>
       <dl className="kv"><dt>전형방법</dt><dd>{u.method}</dd>{u.stage1 && <><dt>1단계</dt><dd>{u.stage1}</dd></>}<dt>실기</dt><dd>{u.exam || "없음"}{u.paper ? ` · ${u.paper}` : ""}</dd>
         <dt>내신 반영</dt><dd>{u.gpa_subjects}</dd>{u.csat_min && <><dt>수능최저</dt><dd>{u.csat_min}</dd></>}{u.csat_areas && <><dt>수능 반영</dt><dd>{u.csat_areas}{u.eng ? ` · 영어 ${u.eng}등급대` : ""}</dd></>}{u.note && <><dt>비고</dt><dd>{u.note}</dd></>}</dl></div>
     <div className="card"><b>전년도(2026) 합격자 성적</b>
       {u.round === "수시" ? <dl className="kv"><dt>내신 최고</dt><dd className="num">{g(u.gpa_best)}</dd><dt>내신 평균</dt><dd className="num">{g(u.gpa_avg)}</dd><dt>70% 컷</dt><dd className="num">{g(u.gpa_cut70)}</dd><dt>최저</dt><dd className="num">{g(u.gpa_min)}</dd><dt>기준</dt><dd>{u.gpa_basis || "–"}</dd></dl>
         : <dl className="kv"><dt>수능 백분위</dt><dd className="num">{u.csat_pct == null ? "자료 없음" : `${u.csat_pct} ± ${u.csat_pm}`}</dd><dt>기준</dt><dd>학원 추정 합격 성적대 (공식 입결 아님)</dd></dl>}
-      <span className="tiny">출처: {(DATA.sources as Record<string, string>)[u.src.split("·")[0]] || u.src} · 상태: {u.verify}</span></div>
+      <span className="tiny">출처: {({ ...DATA.sources, ...TRACK_DATA.sources } as Record<string, string>)[u.src.split("·")[0]] || u.src} · 상태: {u.verify}</span></div>
+    <UnivTracksCard ukey={fullName(u)} st={st} byId={byId} open={open} compact />
     <div className="card"><b>합격자는 이렇게 준비했어요</b><span className="small muted">「미대입시」 합격수기·교수 심사평 데이터베이스를 연결하는 중이에요. 같은 학교 선배{ctx.p.school ? `(${ctx.p.school})` : ""} 합격 사례도 이곳에 보여 드릴 예정이에요.</span></div>
     <button className="btn block" onClick={() => setTarget(u.id)}>{target === u.id ? "목표 대학으로 설정됨 ✓" : "목표 대학으로 설정"}</button>
   </>;
