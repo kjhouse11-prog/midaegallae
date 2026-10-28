@@ -1,9 +1,9 @@
 // v0.9 기능 화면 — 개인 맞춤 입시 플래너 · 나만의 주간 체크리스트 · 입시 일정 · 나에게 맞는 학원 찾기 · 첨삭 비용 예시
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { REGIONS } from "./lib/data";
 import type { AuthUser, Profile } from "./lib/store";
 import * as S from "./lib/store";
-import { ACADEMIES, ACADEMY_CHECKLIST, ACADEMY_SOURCES, fitAcademy, type AcademyPref } from "./lib/academies";
+import { ACADEMY_CHECKLIST, ACADEMY_DATA_NOTE, ACADEMY_SOURCES, ACADEMY_TAGS, guguns, mapUrl, myTags, type Academy } from "./lib/academies";
 import { CRITIQUES, won, type CritiqueReq } from "./lib/critique";
 import { GRADE_ROADMAP, SCHEDULE_2027, SCHEDULE_SOURCE, WEEKDAYS, dayDiff, defaultSettings, makeWeek, nextEvent, weekStart, type Direction, type PlanSettings, type Task, type Week } from "./lib/planner";
 import { NOW, gpaSystem, weakest, type Ctx } from "./lib/calc";
@@ -82,7 +82,7 @@ function PlanSetup({ user, ctx, target, go, toWeek }: { user: AuthUser; ctx: Ctx
     <div className="card"><b>4. 내신·작품·대학·학원 연결</b>
       <div className="quick">
         <button onClick={() => go("me")}>내신 성적 입력</button><button onClick={() => go("works")}>작품 기록하기</button>
-        <button onClick={() => go("match")}>관심 대학 확인</button><button onClick={() => go("acad")}>나에게 맞는 학원</button>
+        <button onClick={() => go("match")}>관심 대학 확인</button><button onClick={() => go("acad")}>전국 학원 찾기</button>
       </div>
       <span className="tiny">목표 대학: {target ? `${target.univ} ${target.dept}` : s.goal || "미설정"} · 올린 작품 {ctx.works.length}개 · 수상 {ctx.awards.length}건</span>
     </div>
@@ -142,65 +142,64 @@ export type AcadSub = "find" | "crit";
 export function AcademyTab({ user, p, works, sub, setSub, go }: { user: AuthUser; p: Profile; works: { id: string; genre: string; madeOn: string }[]; sub: AcadSub; setSub: (s: AcadSub) => void; go: (t: string) => void }) {
   return <>
     <h1 className="page">{sub === "find" ? "입시미술학원 찾기" : "전문가 첨삭 · 비용"}</h1>
-    <div className="seg" role="group" aria-label="학원 메뉴"><button aria-pressed={sub === "find"} onClick={() => setSub("find")}>나에게 맞는 학원</button><button aria-pressed={sub === "crit"} onClick={() => setSub("crit")}>첨삭 비용 예시</button></div>
+    <div className="seg" role="group" aria-label="학원 메뉴"><button aria-pressed={sub === "find"} onClick={() => setSub("find")}>전국 학원 찾기</button><button aria-pressed={sub === "crit"} onClick={() => setSub("crit")}>첨삭 비용 예시</button></div>
     {sub === "find" ? <FindAcademy user={user} p={p} go={go} /> : <CritiqueView user={user} works={works} go={go} />}
   </>;
 }
 
 function FindAcademy({ user, p, go }: { user: AuthUser; p: Profile; go: (t: string) => void }) {
-  const [pref, setPrefS] = useState<AcademyPref>(() => S.uget<AcademyPref>(user, "acad-pref", { budget: null, slot: "", gpaCare: false, oneOnOne: false }));
-  const setPref = (x: Partial<AcademyPref>) => { const n = { ...pref, ...x }; setPrefS(n); S.uset(user, "acad-pref", n); };
-  const [q, setQ] = useState(""), [reg, setReg] = useState("선호 지역"), [more, setMore] = useState(false), [onlyFav, setOnlyFav] = useState(false);
-  const [fav, setFavS] = useState<string[]>(() => S.uget<string[]>(user, "acad-fav", []));
-  const toggleFav = (id: string) => { const n = fav.includes(id) ? fav.filter((x) => x !== id) : [...fav, id]; setFavS(n); S.uset(user, "acad-fav", n); };
+  const [all, setAll] = useState<Academy[] | null>(null);
+  useEffect(() => { import("./lib/academies.json").then((m) => setAll(m.default as Academy[])); }, []);
+  const [q, setQ] = useState(""), [reg, setReg] = useState("선호 지역"), [gu, setGu] = useState(""), [tag, setTag] = useState(""), [n, setN] = useState(20), [onlyFav, setOnlyFav] = useState(false);
+  const [fav, setFavS] = useState<string[]>(() => S.uget<string[]>(user, "acad-fav2", []));
+  const toggleFav = (id: string) => { const x = fav.includes(id) ? fav.filter((y) => y !== id) : [...fav, id]; setFavS(x); S.uset(user, "acad-fav2", x); };
   const [chk, setChkS] = useState<number[]>(() => S.uget<number[]>(user, "acad-check", []));
-  const toggleChk = (k: number) => { const n = chk.includes(k) ? chk.filter((x) => x !== k) : [...chk, k]; setChkS(n); S.uset(user, "acad-check", n); };
+  const toggleChk = (k: number) => { const x = chk.includes(k) ? chk.filter((y) => y !== k) : [...chk, k]; setChkS(x); S.uset(user, "acad-check", x); };
   const [showChk, setShowChk] = useState(false);
+  const mine = myTags(p.track, p.field);
   const regions = reg === "선호 지역" ? p.regions : reg === "전국" ? [] : [reg];
+  const gus = useMemo(() => (all && regions.length === 1 ? guguns(all, regions[0]) : []), [all, reg, p.regions]);
   const list = useMemo(() => {
+    if (!all) return [];
     const qq = q.replace(/\s/g, "");
-    return ACADEMIES.filter((a) => (!regions.length || regions.includes(a.region)) && (!qq || (a.name + a.area + a.region + a.fields.join("") + a.track).replace(/\s/g, "").includes(qq)) && (!onlyFav || fav.includes(a.id)))
-      .map((a) => ({ a, f: fitAcademy(a, { grade: p.grade, track: p.track, field: p.field, regions: p.regions }, pref) })).sort((x, y) => y.f.score - x.f.score);
-  }, [q, reg, pref, onlyFav, fav, p]);
-  const shown = more ? list : list.slice(0, 8);
+    return all.filter((a) => (!regions.length || regions.includes(a.sido)) && (!gu || a.gugun === gu) && (!tag || a.tags.includes(tag))
+      && (!qq || (a.name + a.sido + a.gugun + a.addr + a.tags.join("")).replace(/\s/g, "").includes(qq)) && (!onlyFav || fav.includes(a.id)))
+      .map((a) => ({ a, hit: a.tags.some((t) => mine.includes(t)) }))
+      .sort((x, y) => Number(y.hit) - Number(x.hit) || (regions.length ? 0 : Number(p.regions.includes(y.a.sido)) - Number(p.regions.includes(x.a.sido))));
+  }, [all, q, reg, gu, tag, onlyFav, fav, p]);
+  const reset = () => setN(20);
   return <>
-    <BetaNote>아래 학원은 기능 시험용 <b>가상 학원</b>이에요(실제 학원 아님). 교습비도 예시 범위예요. 실제 학원은 맨 아래 공개 자료에서 찾고, 위치·비용·수업 시간은 직접 상담으로 확인하세요.</BetaNote>
-    <div className="card"><b>나에게 맞는 학원 찾기</b>
+    <div className="card"><b>전국 입시미술학원 찾기</b>
+      <span className="small">{ACADEMY_DATA_NOTE} · <b>{all ? all.length.toLocaleString() : "…"}곳</b></span>
       <span className="small">현재 프로필: <b>{p.grade} · {p.track.replace(" 계열", "")} · {fname(p.field)}</b> · 선호 지역 {p.regions.length ? p.regions.join("·") : "전국"}</span>
-      <span className="tiny">희망 분야가 같은 학원을 먼저 보여 줘요. 분야 40 · 지역 25 · 예산 12 · 수업 시간 8 · 학년 5 · 내신 관리 5 · 1:1 첨삭 5점으로 맞춤도를 계산해요.</span>
-      <div className="grid2">
-        <label className="f"><span className="tiny">월 예산</span><select value={pref.budget ?? ""} onChange={(e) => setPref({ budget: e.target.value ? +e.target.value : null })}><option value="">제한 없음</option>{[40, 50, 60, 70, 80, 90, 110].map((b) => <option key={b} value={b}>{b}만 원 이하</option>)}</select></label>
-        <label className="f"><span className="tiny">수업 시간</span><select value={pref.slot} onChange={(e) => setPref({ slot: e.target.value as AcademyPref["slot"] })}><option value="">상관없음</option>{["평일", "주말", "방학특강"].map((x) => <option key={x}>{x}</option>)}</select></label>
-      </div>
-      <div className="row" style={{ gap: 14, flexWrap: "wrap" }}>
-        <label className="check"><input type="checkbox" checked={pref.gpaCare} onChange={(e) => setPref({ gpaCare: e.target.checked })} /><span>내신 관리 필요</span></label>
-        <label className="check"><input type="checkbox" checked={pref.oneOnOne} onChange={(e) => setPref({ oneOnOne: e.target.checked })} /><span>1:1 첨삭 원함</span></label>
-      </div>
+      <span className="tiny">{mine.length ? `학원명에 '${mine.join("·")}' 분야가 드러난 학원을 먼저 보여 줘요. ` : ""}대부분의 입시미술학원은 여러 분야 반을 함께 운영하니, 개설 분야·교습비·수업 시간은 전화 상담으로 확인하세요.</span>
       <div className="row" style={{ gap: 8 }}><button className="btn line" onClick={() => go("me")}>내 프로필 수정</button><button className="btn line" onClick={() => setShowChk(!showChk)}>학원 선택 체크리스트</button></div>
       {showChk && <ul className="checks">{ACADEMY_CHECKLIST.map((c, k) => <li key={k} className={chk.includes(k) ? "done" : ""}><label><input type="checkbox" checked={chk.includes(k)} onChange={() => toggleChk(k)} /><span className="tx small">{c}</span></label></li>)}</ul>}
     </div>
     <div className="card"><b>학원 검색</b>
-      <input className="search" placeholder="학원명, 동네, 분야 검색" value={q} onChange={(e) => setQ(e.target.value)} aria-label="학원 검색" />
+      <input className="search" placeholder="학원명, 동네(동·구), 도로명 검색" value={q} onChange={(e) => { setQ(e.target.value); reset(); }} aria-label="학원 검색" />
       <div className="filters">
-        <select aria-label="지역" value={reg} onChange={(e) => setReg(e.target.value)}><option>선호 지역</option><option>전국</option>{REGIONS.map((r) => <option key={r}>{r}</option>)}</select>
-        <select aria-label="보기" value={onlyFav ? "fav" : "all"} onChange={(e) => setOnlyFav(e.target.value === "fav")}><option value="all">모든 학원</option><option value="fav">관심 학원 ({fav.length})</option></select>
+        <select aria-label="지역" value={reg} onChange={(e) => { setReg(e.target.value); setGu(""); reset(); }}><option>선호 지역</option><option>전국</option>{REGIONS.map((r) => <option key={r}>{r}</option>)}</select>
+        {gus.length > 0 && <select aria-label="구·군" value={gu} onChange={(e) => { setGu(e.target.value); reset(); }}><option value="">구·군 전체</option>{gus.map((g) => <option key={g}>{g}</option>)}</select>}
+        <select aria-label="분야" value={tag} onChange={(e) => { setTag(e.target.value); reset(); }}><option value="">모든 분야</option>{ACADEMY_TAGS.map((t) => <option key={t} value={t}>{t} 전문</option>)}</select>
+        <select aria-label="보기" value={onlyFav ? "fav" : "all"} onChange={(e) => { setOnlyFav(e.target.value === "fav"); reset(); }}><option value="all">모든 학원</option><option value="fav">관심 학원 ({fav.length})</option></select>
       </div>
-      <span className="tiny">{list.length}곳 (가상 예시 {ACADEMIES.length}곳 중) · 맞춤도 순</span>
+      <span className="tiny">{all ? `${list.length.toLocaleString()}곳` : "학원 목록을 불러오는 중…"}{regions.length ? ` · ${regions.join("·")}${gu ? " " + gu : ""}` : " · 전국"}</span>
     </div>
-    {shown.map(({ a, f }) => <div className="card acad" key={a.id}>
-      <div className="row between"><span className="name">{a.name} <span className="chip plain">가상</span></span><span className={`fit ${f.score >= 80 ? "hi" : f.score >= 60 ? "mid" : ""}`}>{f.score}</span></div>
-      <div className="small muted">{a.region} {a.area} · {a.track} · {a.grades.join("·")}</div>
-      <div className="tags">{a.fields.map((x) => <span key={x} className={x === p.field ? "on" : ""}>{fname(x)}</span>)}</div>
-      <dl className="kv"><dt>월 교습비</dt><dd><b className="num">{a.fee[0]}~{a.fee[1]}만 원</b> <span className="tiny">(정규반 예시)</span></dd><dt>수업</dt><dd>주 {a.hoursPerWeek}시간 · {a.slots.join("·")} · 반 {a.classSize}명 내외</dd>
-        <dt>지원</dt><dd>{[a.gpaCare && "내신 관리", a.oneOnOne && "1:1 첨삭", a.contest && "실기대회 지도", a.online && "온라인 강평"].filter(Boolean).join(" · ") || "–"}</dd><dt>특징</dt><dd>{a.note}</dd></dl>
-      <div className="row between tiny"><span>{f.why.length ? `✓ ${f.why.join(" · ")}` : ""}{f.miss.length ? <span className="miss"> {f.why.length ? "· " : ""}{f.miss.join(" · ")}</span> : null}</span>
+    {list.slice(0, n).map(({ a, hit }) => <div className="card acad" key={a.id}>
+      <div className="row between"><span className="name">{a.name}</span>{hit && <span className="chip t-fit">내 분야</span>}</div>
+      <div className="small muted">{a.sido} {a.gugun}</div>
+      {a.tags.length > 0 && <div className="tags">{a.tags.map((x) => <span key={x} className={mine.includes(x) ? "on" : ""}>{x}</span>)}</div>}
+      <dl className="kv"><dt>주소</dt><dd>{a.addr}{a.zip ? <span className="tiny"> ({a.zip})</span> : null}</dd>
+        <dt>전화</dt><dd>{a.tel ? <a href={`tel:${a.tel.replace(/-/g, "")}`}>{a.tel}</a> : <span className="tiny">공개 번호 없음 · 나이스 학원민원서비스에서 확인</span>}</dd></dl>
+      <div className="row between tiny"><a className="linkbtn" href={mapUrl(a)} target="_blank" rel="noopener">지도에서 보기 ↗</a>
         <button className="linkbtn" onClick={() => toggleFav(a.id)}>{fav.includes(a.id) ? "★ 관심" : "☆ 관심"}</button></div>
     </div>)}
-    {!list.length && <div className="notice">조건에 맞는 학원이 없어요. 지역을 '전국'으로 바꾸거나 검색어를 지워 보세요.</div>}
-    {list.length > 8 && <button className="btn line block" onClick={() => setMore(!more)}>{more ? "접기" : `${list.length - 8}곳 더 보기`}</button>}
-    <div className="card"><b>전국 공개 자료로 실제 학원 찾기</b>
+    {all && !list.length && <div className="notice">조건에 맞는 학원이 없어요. 지역을 '전국'으로 바꾸거나 검색어·분야를 지워 보세요.</div>}
+    {list.length > n && <button className="btn line block" onClick={() => setN(n + 40)}>{Math.min(40, list.length - n)}곳 더 보기 (남은 {list.length - n}곳)</button>}
+    <div className="card"><b>공개 자료로 학원 정보 확인</b>
       {ACADEMY_SOURCES.map((s) => <a key={s.url} className="srclink" href={s.url} target="_blank" rel="noopener"><b className="small">{s.name}</b><span className="tiny">{s.note}</span></a>)}
-      <span className="tiny">공개 목록은 학원의 현재 운영·수업·가격을 보증하지 않아요. 교습비는 학원 안에 게시된 금액과 교육청 등록 금액이 같은지 확인하세요.</span>
+      <span className="tiny">이 목록은 학원의 현재 운영·수업·가격을 보증하지 않아요. 이전·폐원했을 수 있으니 방문 전에 전화로 확인하고, 교습비는 학원에 게시된 금액과 교육청 등록 금액이 같은지 확인하세요. 학원 정보 수정·추가 요청은 「월간 미대입시」로 연락해 주세요.</span>
     </div>
   </>;
 }
