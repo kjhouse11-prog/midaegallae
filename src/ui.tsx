@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode } from "react";
+import { IS_NATIVE } from "./lib/native";
+import * as S from "./lib/store";
 import { AXES } from "./lib/data";
 import { ADS, MGOOD_URL, type Ad } from "./lib/ads";
 
@@ -88,7 +90,7 @@ export function InstallBar() {
     window.addEventListener("bip-ready", on); window.addEventListener("appinstalled", ok);
     return () => { window.removeEventListener("bip-ready", on); window.removeEventListener("appinstalled", ok); };
   }, []);
-  if (standalone || hidden || done || (!ios && !android && !bip)) return null;
+  if (IS_NATIVE || standalone || hidden || done || (!ios && !android && !bip)) return null;
   const close = () => { setHidden(true); try { sessionStorage.setItem("install-bar-off", "1"); } catch { /* 무시 */ } };
   const here = location.href.replace(/^https?:\/\//, "");
   let msg: string, action: ReactNode = null;
@@ -172,4 +174,13 @@ export function AdBanner() {
       </div>
     </div>}
   </>;
+}
+
+// 유료 서비스 결제 보류 중(앱 기본) — 결제 버튼 대신 정식 오픈 알림 신청
+export function PaidSoon({ user, what }: { user: S.AuthUser; what: string }) {
+  const [on, setOn] = useState(() => S.uget<boolean>(user, "paid-notify", false));
+  return <div className="card"><b>{what} · 정식 오픈 준비 중</b>
+    <span className="small muted">결제 서비스는 정식 오픈 때 열려요. 지금은 요청 화면과 가격·환불 기준만 미리 볼 수 있고, 돈이 청구되지 않아요.</span>
+    <button className="btn block" disabled={on} onClick={() => { S.uset(user, "paid-notify", true); setOn(true); }}>{on ? "오픈 알림 신청됨 ✓" : "오픈하면 알려 주세요"}</button>
+  </div>;
 }

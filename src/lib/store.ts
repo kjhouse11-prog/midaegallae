@@ -1,5 +1,6 @@
 // 데이터 저장 계층: Supabase가 설정되어 있으면 서버에, 아니면 이 기기(데모 모드)에 저장
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { authRedirect } from "./native";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config";
 import { SOLID_VIEWS } from "./data";
 
@@ -50,7 +51,7 @@ export function onAuthChange(cb: (u: AuthUser | null) => void): () => void {
 export async function signUp(email: string, password: string, consent?: Consent): Promise<{ needsConfirm: boolean }> {
   if (sb) {
     // 메일 인증 전에는 세션이 없어 표에 못 씀 → 가입 정보(user_metadata)에 담아 두고 첫 로그인 때 표로 옮김
-    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.href.split("#")[0], data: consent ? { marketing_consent: consent } : undefined } });
+    const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: authRedirect(), data: consent ? { marketing_consent: consent } : undefined } });
     if (error) throw new Error(koError(error.message));
     return { needsConfirm: !data.session };
   }
@@ -67,12 +68,29 @@ function demoId(d: Local, email: string): string {
 }
 export async function resetPassword(email: string): Promise<void> {
   if (!sb) throw new Error("데모 모드에서는 비밀번호 재설정을 쓸 수 없어요.");
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split("#")[0] });
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: authRedirect() });
   if (error) throw new Error(koError(error.message));
 }
 export async function signOut(): Promise<void> {
   if (sb) { await sb.auth.signOut(); return; }
   const d = lread(); delete d.user; lwrite(d);
+}
+// 회원 탈퇴 — 내 작품·인증 서류 파일을 지운 뒤 계정 삭제(supabase/migrate_v0.13.sql 의 delete_my_account)
+// 데모 모드는 이 기기에 저장된 내 기록을 모두 지움
+export async function deleteAccount(u: AuthUser): Promise<void> {
+  if (sb) {
+    for (const bucket of ["artworks", "mentor-docs"]) {
+      const { data } = await sb.storage.from(bucket).list(u.id, { limit: 1000 });
+      const files = (data || []).filter((f) => f.id).map((f) => `${u.id}/${f.name}`);
+      if (files.length) await sb.storage.from(bucket).remove(files);
+    }
+    const { error } = await sb.rpc("delete_my_account");
+    if (error) throw new Error(/function|schema cache/i.test(error.message) ? "탈퇴 기능 준비 중이에요. 고객센터로 탈퇴를 요청해 주세요." : error.message);
+    await sb.auth.signOut();
+  } else {
+    const d = lread(); if (d.user?.id === u.id) { delete d.user; d.profile = undefined; d.awards = []; d.works = []; } lwrite(d);
+  }
+  try { Object.keys(localStorage).filter((k) => k.endsWith(":" + u.id)).forEach((k) => localStorage.removeItem(k)); } catch { /* 무시 */ }
 }
 function koError(m: string): string {
   if (/Invalid login credentials/i.test(m)) return "이메일 또는 비밀번호가 맞지 않아요.";
