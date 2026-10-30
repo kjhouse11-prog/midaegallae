@@ -144,16 +144,14 @@ label.f input:focus,label.f select:focus{outline:2px solid var(--accent);outline
 .install-bar .x{background:none;border:0;font-size:22px;line-height:1;color:#9aa0ad;padding:4px 6px;cursor:pointer;flex:none}
 
 /* 로그인 화면 명화 배경 — 레오나르도 다빈치 〈모나리자〉 (퍼블릭 도메인) · 천천히 다가가는 움직임 */
-.auth .hero{position:relative;margin:0 -20px 4px;height:min(62vh,560px);min-height:360px;background:#2B2416;display:flex;align-items:flex-end;overflow:hidden;isolation:isolate}
-.auth .hero .art{position:absolute;inset:-2%;background:url(./assets/hero-mona-lisa.jpg) 50% 12%/cover no-repeat;z-index:-1;animation:heroDrift 24s ease-in-out infinite alternate}
-@keyframes heroDrift{from{transform:scale(1) translate(0,0)}to{transform:scale(1.1) translate(0,2%)}}
+.auth .hero{position:relative;margin:0 -20px 4px;height:min(62vh,560px);min-height:360px;background:#02165F;display:flex;align-items:flex-end;overflow:hidden;isolation:isolate}
+.auth .hero .art{position:absolute;inset:0;background:url(./assets/hero-david.jpg) 50% 0/cover no-repeat;background-image:image-set(url(./assets/hero-david.webp) type("image/webp"),url(./assets/hero-david.jpg) type("image/jpeg"));z-index:-1;transform-origin:50% 0;animation:heroDrift 24s ease-in-out infinite alternate}
+@keyframes heroDrift{from{transform:scale(1)}to{transform:scale(1.06)}}
 @media (prefers-reduced-motion:reduce){.auth .hero .art{animation:none}}
-.auth .hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,14,6,0) 0%,rgba(20,14,6,0) 48%,rgba(20,14,6,.6) 74%,rgba(14,10,4,.9) 100%)}
-.auth .hero-txt{position:relative;color:#fff;padding:0 22px 30px}
-.auth .hero .kicker{font-size:11px;letter-spacing:.16em;opacity:.85}
-.auth .hero .logo{font-size:44px;line-height:1.1;margin-top:8px;letter-spacing:-.02em;text-shadow:0 2px 16px rgba(0,0,0,.25)}
-.auth .hero p{margin:10px 0 0;font-size:14.5px;line-height:1.5;opacity:.92}
-.auth .hero .credit{position:absolute;right:10px;bottom:8px;font-size:10px;color:rgba(255,255,255,.7)}
+.auth .hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(2,22,95,0) 0%,rgba(2,22,95,0) 58%,rgba(2,22,95,.62) 80%,rgba(2,18,78,.94) 100%)}
+.auth .hero-txt{position:relative;color:#fff;padding:0 22px 26px}
+.auth .hero .logo{font-size:40px;line-height:1.1;letter-spacing:-.02em;text-shadow:0 2px 16px rgba(0,0,0,.35)}
+.auth .hero p{margin:8px 0 0;font-size:14.5px;line-height:1.5;opacity:.92;text-shadow:0 1px 8px rgba(0,0,0,.4)}
 
 /* 월간 「미대입시」 광고 배너 (3:1, 영상 자체에 '광고' 표기 포함) */
 .ad-banner{display:block;position:relative;width:100%;padding:0;border:0;cursor:pointer;flex-shrink:0;margin-top:auto;border-radius:14px;overflow:hidden;aspect-ratio:3/1;background:#1B2F9E;box-shadow:var(--shadow)}

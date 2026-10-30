@@ -54,10 +54,9 @@ function Auth({ onDone }: { onDone: (u: AuthUser) => void }) {
   async function reset() { setErr(""); setMsg(""); if (!email) { setErr("이메일을 먼저 입력해 주세요."); return; } try { await S.resetPassword(email.trim()); setMsg("비밀번호 재설정 메일을 보냈어요."); } catch (x) { setErr((x as Error).message); } }
   return (
     <form className="auth" onSubmit={submit}>
-      <div className="hero" role="img" aria-label="레오나르도 다빈치, 모나리자">
+      <div className="hero" role="img" aria-label="월간 미대입시, 꿈을 그리는 모든 순간 곁에 · Since 1988. 화실의 다비드 석고상과 소묘">
         <div className="art" aria-hidden="true" />
-        <div className="hero-txt"><span className="kicker">MONTHLY MIDAE IPSI · SINCE 1988</span><div className="logo">미대갈래</div><p>38년 미대 입시 데이터로 찾는<br />나의 미대 입시 길</p></div>
-        <span className="credit">레오나르도 다빈치 〈모나리자〉 1503–1519년경 · 루브르 박물관</span>
+        <div className="hero-txt"><div className="logo">미대갈래</div><p>38년 미대 입시 데이터로 찾는<br />나의 미대 입시 길</p></div>
       </div>
       <div className="seg" role="group"><button type="button" aria-pressed={mode === "in"} onClick={() => setMode("in")}>로그인</button><button type="button" aria-pressed={mode === "up"} onClick={() => setMode("up")}>회원가입</button></div>
       <label className="f">이메일<input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
