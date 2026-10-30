@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { IS_NATIVE, PLATFORM, WEB_URL, setBackHandler } from "./lib/native";
 import { DRILL, FIELD_GROUPS, FIELDS, MAJORS, MAJOR_TRACK, REGIONS, REGION_GROUPS, SOLID_VIEWS, TRACKS, fieldGroup, fieldsOf, isSolidField } from "./lib/data";
 import { AcademyTab, Planner, useWeek, weekDone, type AcadSub, type PlanSub } from "./features";
 import { MentorTab, type MentorSub } from "./mentor";
@@ -10,6 +11,7 @@ import { NOW, academyMonths, buildPlan, demoAnalysis, demoSolidAnalysis, examDat
 import { catOf, judge, majorMatch, practicalIndex, recommend, setUniverse, toGpa9, VERDICT_LABEL, VERDICT_STYLE, type Judgement, type Program, type Verdict } from "./lib/engine";
 import DATA from "./lib/programs.json";
 import { catLabel, TRACK_CATS, TRACK_DATA } from "./lib/strategy";
+import { CareerPanel, ExamPanel, PassPrep } from "./career";
 import { HomeTrackCard, StrategyPanel, UnivTracksCard, useTrackPref } from "./tracks";
 import { AdBanner, Icon, InstallBar, NumInput, PartBar, Radar } from "./ui";
 import { APP_VERSION } from "./config";
@@ -119,7 +121,7 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const [target, setTargetState] = useState<string>(() => { try { return localStorage.getItem(TARGET_KEY) || ""; } catch { return ""; } });
   const [detail, setDetail] = useState<string | null>(null);
   const [workDetail, setWorkDetail] = useState<string | null>(null);
-  const [matchSub, setMatchSub] = useState<MatchSub>("list");
+  const [matchSub, setMatchSub] = useState<MatchSub>("list"), [careerMajor, setCareerMajor] = useState("");
   const [planSub, setPlanSub] = useState<PlanSub>("plan"), [acadSub, setAcadSub] = useState<AcadSub>("find"), [mentorSub, setMentorSub] = useState<MentorSub>("find");
   const setTarget = (id: string) => { setTargetState(id); try { localStorage.setItem(TARGET_KEY, id); } catch { /* */ } };
 
@@ -133,6 +135,11 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
     if (t === "match" && sub) setMatchSub(sub as MatchSub); if (t === "plan" && sub) setPlanSub(sub as PlanSub); if (t === "acad" && sub) setAcadSub(sub as AcadSub); if (t === "mentor" && sub) setMentorSub(sub as MentorSub);
   };
   const open = (id: string) => { setTab("match"); setDetail(id); window.scrollTo(0, 0); };
+  // 안드로이드 뒤로 가기: 상세 → 목록, 다른 탭 → 홈, 홈에서는 앱 종료
+  useEffect(() => {
+    setBackHandler(() => { if (detail) { setDetail(null); return true; } if (workDetail) { setWorkDetail(null); return true; } if (tab !== "home") { go("home"); return true; } return false; });
+    return () => setBackHandler(null);
+  });
 
   if (loading) return <div className="loading">불러오는 중…</div>;
   const needProfile = !profile || !profile.name;
@@ -141,10 +148,10 @@ function Main({ user, onSignOut }: { user: AuthUser; onSignOut: () => void }) {
   const view = needProfile && tab !== "me" ? <Onboard go={() => go("me")} /> :
     tab === "home" ? <Home user={user} ctx={ctx} target={tp} go={go} open={open} /> :
     tab === "works" ? <Works user={user} works={works} reload={reload} detail={workDetail} setDetail={setWorkDetail} defaultField={p.field} /> :
-    tab === "match" ? (detail && byId(detail) ? <ProgramView u={byId(detail)!} ctx={ctx} back={() => setDetail(null)} target={target} setTarget={setTarget} open={open} /> : <Match user={user} ctx={ctx} open={open} mode={matchSub} setMode={setMatchSub} />) :
+    tab === "match" ? (detail && byId(detail) ? <ProgramView u={byId(detail)!} ctx={ctx} back={() => setDetail(null)} target={target} setTarget={setTarget} open={open} toCareer={(m) => { setCareerMajor(m); setMatchSub("career"); setDetail(null); window.scrollTo(0, 0); }} /> : <Match user={user} ctx={ctx} open={open} mode={matchSub} setMode={setMatchSub} career={careerMajor} setCareer={setCareerMajor} />) :
     tab === "plan" ? <Planner user={user} ctx={ctx} target={tp} road={<Road ctx={ctx} u={tp} go={go} />} sub={planSub} setSub={setPlanSub} go={(t) => go(t as Tab)} /> :
     tab === "mentor" ? <MentorTab user={user} p={p} works={works} sub={mentorSub} setSub={setMentorSub} /> :
-    tab === "acad" ? <AcademyTab user={user} p={p} works={works} sub={acadSub} setSub={setAcadSub} go={(t) => go(t as Tab)} /> :
+    tab === "acad" ? <AcademyTab user={user} p={p} works={works} target={tp} sub={acadSub} setSub={setAcadSub} go={(t) => go(t as Tab)} /> :
     <Me user={user} profile={p} isNew={needProfile} awards={awards} reload={reload} onSignOut={onSignOut} />;
   return (
     <>
@@ -291,10 +298,11 @@ function WorkView({ w, back, reload }: { w: Artwork; back: () => void; reload: (
 
 // ---------------- 대학찾기: 추천 리스트 / 학과 판정 ----------------
 // 전형 필터: 전체 · 관심 전형 · 교과 · 종합 · 실기 · 포트폴리오 · 면접 · 정시
-type MatchSub = "list" | "strategy" | "one";
+type MatchSub = "list" | "strategy" | "career" | "exam" | "one";
 const TT: [string, string][] = [["all", "전체"], ["pref", "관심 전형"], ...TRACK_CATS.map((c) => [c.k, c.label] as [string, string])];
 const AREA: Record<string, string[]> = { "선호 지역": [], 전국: [], 서울: ["서울"], "경기·인천": ["경기", "인천"], 지방: ["강원", "대전", "세종", "충북", "충남", "광주", "전북", "전남", "대구", "경북", "부산", "울산", "경남", "제주"] };
-function Match({ user, ctx, open, mode, setMode }: { user: AuthUser; ctx: Ctx; open: (id: string) => void; mode: MatchSub; setMode: (m: MatchSub) => void }) {
+const MATCH_SUBS: [MatchSub, string][] = [["list", "추천"], ["strategy", "전형 전략"], ["career", "학과·진로"], ["exam", "실기 종목"], ["one", "대학 판정"]];
+function Match({ user, ctx, open, mode, setMode, career, setCareer }: { user: AuthUser; ctx: Ctx; open: (id: string) => void; mode: MatchSub; setMode: (m: MatchSub) => void; career: string; setCareer: (m: string) => void }) {
   const [pref] = useTrackPref(user);
   const [tt, setTt] = useState(pref.length ? "pref" : "all"), [area, setArea] = useState(ctx.p.regions.length ? "선호 지역" : "전국"), [mine, setMine] = useState(true), [vf, setVf] = useState<"전체" | Verdict>("전체");
   const st = useMemo(() => toStudent(ctx), [ctx]);
@@ -304,8 +312,8 @@ function Match({ user, ctx, open, mode, setMode }: { user: AuthUser; ctx: Ctx; o
   const list = vf === "전체" ? all : all.filter((x) => x.j.verdict === vf);
   return <>
     <h1 className="page">대학찾기</h1>
-    <div className="seg" role="group" aria-label="보기"><button aria-pressed={mode === "list"} onClick={() => setMode("list")}>추천 리스트</button><button aria-pressed={mode === "strategy"} onClick={() => setMode("strategy")}>전형별 전략</button><button aria-pressed={mode === "one"} onClick={() => setMode("one")}>대학·학과 판정</button></div>
-    {mode === "one" ? <OneCheck ctx={ctx} open={open} /> : mode === "strategy" ? <StrategyPanel user={user} list={PROGRAMS} st={st} major={mine ? ctx.p.major : undefined} regions={regions} open={open} fullName={fullName} /> : <>
+    <div className="seg" role="group" aria-label="보기">{MATCH_SUBS.map(([k, t]) => <button key={k} aria-pressed={mode === k} onClick={() => setMode(k)}>{t}</button>)}</div>
+    {mode === "one" ? <OneCheck ctx={ctx} open={open} /> : mode === "career" ? <CareerPanel list={PROGRAMS} st={st} open={open} fullName={fullName} major={career || ctx.p.major} setMajor={setCareer} /> : mode === "exam" ? <ExamPanel list={PROGRAMS} st={st} open={open} fullName={fullName} major={ctx.p.major} field={ctx.p.field} /> : mode === "strategy" ? <StrategyPanel user={user} list={PROGRAMS} st={st} major={mine ? ctx.p.major : undefined} regions={regions} open={open} fullName={fullName} /> : <>
       <p className="lead">내 내신·실기 지수·모의고사를 대학별 반영비율로 환산해 2026학년도 합격자와 비교했어요.</p>
       <div className="tags pick" role="group" aria-label="전형">{TT.filter(([k]) => k !== "pref" || pref.length).map(([k, t]) => <button key={k} aria-pressed={tt === k} onClick={() => setTt(k)}>{t}</button>)}</div>
       {tt === "pref" && <span className="tiny">관심 전형: {pref.map(catLabel).join(" · ")} — 전형별 전략에서 바꿀 수 있어요</span>}
@@ -341,7 +349,7 @@ function OneCheck({ ctx, open }: { ctx: Ctx; open: (id: string) => void }) {
       <button key={p.id} className="pick" onClick={() => open(p.id)}><span><b className="small">{p.dept}</b><br /><span className="tiny">{p.track} · {p.method}</span></span><span className={`chip ${VERDICT_STYLE[j.verdict].c}`}>{VERDICT_LABEL[j.verdict]}</span></button>)}</div></>}
   </>;
 }
-function ProgramView({ u, ctx, back, target, setTarget, open }: { u: Program; ctx: Ctx; back: () => void; target: string; setTarget: (id: string) => void; open: (id: string) => void }) {
+function ProgramView({ u, ctx, back, target, setTarget, open, toCareer }: { u: Program; ctx: Ctx; back: () => void; target: string; setTarget: (id: string) => void; open: (id: string) => void; toCareer: (major: string) => void }) {
   const st = toStudent(ctx); const j = judge(u, st); const pr = priorities(j).filter((x) => x.margin < 0);
   const tot = u.wP + u.wG + u.wC + u.wO || 1, pct = (x: number) => Math.round((x / tot) * 100);
   const g = (x: number | null) => (x == null ? "–" : x);
@@ -364,7 +372,7 @@ function ProgramView({ u, ctx, back, target, setTarget, open }: { u: Program; ct
         : <dl className="kv"><dt>수능 백분위</dt><dd className="num">{u.csat_pct == null ? "자료 없음" : `${u.csat_pct} ± ${u.csat_pm}`}</dd><dt>기준</dt><dd>학원 추정 합격 성적대 (공식 입결 아님)</dd></dl>}
       <span className="tiny">출처: {({ ...DATA.sources, ...TRACK_DATA.sources } as Record<string, string>)[u.src.split("·")[0]] || u.src} · 상태: {u.verify}</span></div>
     <UnivTracksCard ukey={fullName(u)} st={st} byId={byId} open={open} compact />
-    <div className="card"><b>합격자는 이렇게 준비했어요</b><span className="small muted">「미대입시」 합격수기·교수 심사평 데이터베이스를 연결하는 중이에요. 같은 학교 선배{ctx.p.school ? `(${ctx.p.school})` : ""} 합격 사례도 이곳에 보여 드릴 예정이에요.</span></div>
+    <PassPrep u={u} st={st} toCareer={toCareer} />
     <button className="btn block" onClick={() => setTarget(u.id)}>{target === u.id ? "목표 대학으로 설정됨 ✓" : "목표 대학으로 설정"}</button>
   </>;
 }
@@ -443,6 +451,21 @@ function Me({ user, profile, isNew, awards, reload, onSignOut }: { user: AuthUse
       <span className="tiny">특전은 해마다 바뀌어요. 지원 전 반드시 해당 대학의 당해 모집요강과 대회 공고를 확인하세요. 특전 정보는 「월간 미대입시」 편집부가 계속 보완합니다.</span></div>}
     {!isNew && <ConsentCard user={user} />}
     <button className="btn line block" onClick={onSignOut}>로그아웃</button>
-    <p className="tiny">버전 {APP_VERSION}</p>
+    <div className="row" style={{ gap: 12, justifyContent: "center" }}><a className="linkbtn tiny" href={`${WEB_URL}privacy.html`} target="_blank" rel="noopener">개인정보 처리방침</a><a className="linkbtn tiny" href={`${WEB_URL}terms.html`} target="_blank" rel="noopener">이용약관</a></div>
+    <Withdraw user={user} onDone={onSignOut} />
+    <p className="tiny">버전 {APP_VERSION}{IS_NATIVE ? ` · ${PLATFORM === "ios" ? "iOS" : "Android"} 앱` : ""}</p>
   </>;
+}
+
+// 회원 탈퇴 — 스토어 정책상 앱 안에서 바로 탈퇴할 수 있어야 함
+function Withdraw({ user, onDone }: { user: AuthUser; onDone: () => void }) {
+  const [open, setOpen] = useState(false), [txt, setTxt] = useState(""), [busy, setBusy] = useState(false), [err, setErr] = useState("");
+  if (!open) return <button className="linkbtn tiny" style={{ alignSelf: "center", color: "var(--ink-3)" }} onClick={() => setOpen(true)}>회원 탈퇴</button>;
+  return <div className="card"><b>회원 탈퇴</b>
+    <ul className="list small"><li>입시 프로필·수상 경력·올린 작품과 AI 진단·플래너 기록이 모두 지워지고 되돌릴 수 없어요.</li><li>선배로 등록했다면 선배 프로필과 정산 계좌 정보도 지워져요.</li><li>멘토 조언 결제·정산 기록은 전자상거래법에 따라 5년간 보관한 뒤 지워요.</li></ul>
+    <label className="f"><span className="tiny">확인을 위해 <b>탈퇴</b>라고 입력하세요</span><input value={txt} onChange={(e) => setTxt(e.target.value)} /></label>
+    {err && <div className="notice" role="alert">{err}</div>}
+    <div className="row" style={{ gap: 8 }}><button className="btn line" onClick={() => { setOpen(false); setTxt(""); }}>취소</button>
+      <button className="btn" disabled={txt.trim() !== "탈퇴" || busy} onClick={async () => { setBusy(true); setErr(""); try { await S.deleteAccount(user); onDone(); } catch (x) { setErr((x as Error).message); setBusy(false); } }}>{busy ? "지우는 중…" : "탈퇴하고 모든 기록 삭제"}</button></div>
+  </div>;
 }

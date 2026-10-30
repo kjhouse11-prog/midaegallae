@@ -21,7 +21,7 @@
 - `.github/workflows/deploy.yml` — main에 올리면 GitHub Pages로 자동 배포
 
 ## 처음 설정
-1. Supabase → SQL Editor → `supabase/setup.sql` 전체 붙여넣고 Run → 이어서 `supabase/migrate_v0.4.sql`, `migrate_v0.7.sql`, `migrate_v0.9.sql`, `migrate_v0.10.sql` 차례로 Run
+1. Supabase → SQL Editor → `supabase/setup.sql` 전체 붙여넣고 Run → 이어서 `supabase/migrate_v0.4.sql`, `migrate_v0.7.sql`, `migrate_v0.9.sql`, `migrate_v0.10.sql`, `migrate_v0.13.sql` 차례로 Run
    → 운영자 지정: `insert into admins(user_id) select id from auth.users where email = '운영자 이메일';`
 2. Supabase → Project Settings → API 에서 Project URL, anon(public) 키 확인
 3. GitHub 저장소 → Settings → Secrets and variables → Actions → **Variables** 탭에
@@ -42,7 +42,17 @@ npm run dev
 - 아이콘·이름(미대갈래)은 `public/` 의 manifest.webmanifest, icon-*.png. 서비스워커 `public/sw.js`
 - Supabase 키를 넣지 않으면 데모 모드(데이터는 그 폰에만 저장)
 
+## 스토어 앱 (안드로이드·아이폰, v0.13~)
+- 같은 화면(React)을 Capacitor 8로 감싸 스토어용 앱을 만듦. 앱 ID `kr.co.mgood.midaegallae`(등록 후 변경 불가), 설정 `capacitor.config.ts`
+- `android/`(Android Studio 프로젝트) · `ios/`(Xcode 프로젝트, Swift Package Manager) · 아이콘·시작 화면 원본 `assets/` (`npx @capacitor/assets generate`로 재생성)
+- 자동 빌드 `.github/workflows/mobile-build.yml`: 올릴 때마다 안드로이드 **시험 설치용 APK**(Actions › 실행 › Artifacts `android-app`)와 아이폰 빌드 확인. 저장소 Secrets에 서명 키(`ANDROID_KEYSTORE_BASE64`·`ANDROID_KEYSTORE_PASSWORD`·`ANDROID_KEY_ALIAS`·`ANDROID_KEY_PASSWORD`)를 넣으면 플레이스토어 업로드용 AAB도 생성
+- 내 컴퓨터: `npm run app:android`(Android Studio 열림) / `npm run app:ios`(Mac·Xcode)
+- 앱 전용 동작 `src/lib/native.ts`: 안드로이드 뒤로 가기(하위 화면 → 목록 → 홈 → 종료), 바깥 링크는 휴대폰 브라우저, 상태 표시줄 색, 앱에서는 홈 화면 설치 안내·서비스워커 끔, 이메일 인증 링크는 웹 주소로
+- **유료 서비스 결제 보류**: `VITE_PAYMENT_MODE`(test·off·live). 비우면 웹 베타는 test(테스트 결제), 앱은 off(결제 단계 대신 '정식 오픈 알림 신청'). 결제 방식 확정 후 live 연동
+- 스토어 필수: 앱 안 **회원 탈퇴**(마이 › 회원 탈퇴, Supabase는 `supabase/migrate_v0.13.sql` 실행 필요), 개인정보 처리방침 `public/privacy.html`·이용약관 `public/terms.html`(초안, [ ] 항목 기재 후 시행)
+
 ## 버전
+- 0.13.0 (2026-10-30): **스토어용 모바일 앱(안드로이드·아이폰) 전환**. Capacitor 8 네이티브 프로젝트·아이콘·시작 화면·자동 빌드(APK/AAB, iOS 빌드 확인), 뒤로 가기·바깥 링크·상태 표시줄 처리, 앱 안 회원 탈퇴(`migrate_v0.13.sql`), 개인정보 처리방침·이용약관 초안 페이지, 유료 서비스 결제 보류 스위치(앱은 오픈 알림 신청). **학원찾기 세밀화**: 동·읍·면 필터, 정렬(내 분야·이름·상담 점수), 학원 상세(전화 상담·네이버/카카오 지도·같은 동 학원·정보 수정 요청), 목표 대학·학년·분야 맞춤 상담 질문, 상담 노트(교습비·별도 비용·주당 시간·반 인원·통학·강사·체험·합격 실적·4항목 평가) → 비교 점수 100점, 관심 학원 비교표(시간당 비용 등 항목별 최고값 표시), 학원 고르는 법(학년별 가이드·학원 유형·학원법 환불 기준). **대학진로 세밀화**: 대학찾기에 '학과·진로'(12개 전공별 소개·배우는 과목·직업·진출 분야·관련 국가자격·고교 준비·자주 보는 실기 종목, 수록 대학 수·평균 경쟁률·지역/전형/실기 종목 분포, 내 판정 요약)와 '실기 종목'(13개 종목별 대학, 프로필 분야 추천 종목 ★) 추가, 학과 상세에 '합격하려면 이것부터'(내신·실기·수능·최저·서류·면접 충족/보완)와 '이 학과 졸업 후'. DB 변경: 회원 탈퇴 함수(`migrate_v0.13.sql`)
 - 0.12.0 (2026-10-28): **전국 입시미술학원 실제 데이터 연동**. 학원 탭 '전국 학원 찾기'를 가상 예시 33곳에서 「월간 미대입시」 2026 전국 입시 미술학원 현황 **1,209곳**(17개 시·도)으로 교체. 시·도 → 구·군 단계 필터, 학원명·동·도로명 검색, 학원명 기준 전문 분야 표시(만화·애니·디자인·한국화·게임·조소·조형)와 내 계열 학원 우선 정렬('내 분야'), 주소·우편번호, 전화 바로 걸기, 네이버 지도 링크, 관심 학원(이 기기 저장, 새 목록 기준으로 초기화). 학원 목록은 학원 탭을 열 때만 불러옴(별도 파일). **개인정보 보호**: 원본은 공모전 접수 명단이라 휴대전화 17건(원장·담당자 개인번호 가능)은 공개 데이터에서 제외, 개인 이름으로 보이는 행 1건·시험/빈 행 2건·중복 11건 정리, 지역번호 누락·형식 오류 번호 보정. 원본 엑셀은 저장소에 올리지 않음(`python3 scripts/build_academies.py <엑셀>`로 갱신). 가상 맞춤도(예산·수업 시간·교습비 예시) 제거. DB 변경 없음
 - 0.11.1 (2026-10-23): **상단 빠른 메뉴·홈 이동**. 상단 바에 홈·작품·대학찾기·플래너·멘토·학원·마이 빠른 메뉴 고정, 로고 '미대갈래' 탭 시 홈으로 이동. PC·태블릿 폭에서 상·하단 메뉴가 스크롤 끝에서만 보이던 문제 수정(overflow:hidden → clip). DB 변경 없음
 - 0.11.0 (2026-10-23): **전형별 맞춤 피드백**. 미대 수시를 학생부교과·학생부종합·실기고사·포트폴리오·면접으로, 정시와 나눠 판정. 대학찾기에 **'전형별 전략'** 화면 신설 — 관심 전형 설정(이 기기에 저장), 전형별 하향(안정)·적정·소신·상향 개수와 대표 대학, 내 내신·실기 지수·모의고사와 비교한 조언, 내신 vs 모의고사 위치로 **수시 중심/정시 확대/병행** 권고. 추천 리스트 필터를 전체·관심 전형·교과·종합·실기·포트폴리오·면접·정시로 교체. **대학별 개설 전형 카드**(대학·학과 판정, 학과 상세): 수시·정시 모집인원과 비중(수시 위주/정시 위주/균형), 전형별 반영비율 막대(교과·서류·실기·면접·수능), 모집인원, 수능최저, 2026 경쟁률·등급컷(50%/70%), 지역인재·학교장추천 자격, 학과별 판정. 데이터 `src/lib/tracks.json`(`scripts/build_tracks.py`로 생성): 그린알다 2027 미대 수시·정시 자료(대학 모집요강·대학어디가 정리) 103개 대학·캠퍼스, 380개 전형(정원내·특별전형 제외), 판정용 모집단위 396개 추가(교과 177·종합 79·실기·포트폴리오 57·정시 84). 판정 표기 '안정' → '하향(안정)'. 교과 등급컷은 대학 선호도 추정에서 제외. DB 변경 없음
