@@ -3,6 +3,8 @@
 // 조언자: 합격·재학 인증 서류 제출 → 운영자 승인 → 프로필 → 요청 수락·답변 → 정산(수수료·원천징수 3.3% 공제)
 // 운영자: 인증 심사(확인 후 원본 삭제) · 요청·결제·환불 · 분쟁·신고 · 정산 · 수수료율 설정
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { IS_NATIVE, openExternal, paymentMode, useNativeBack } from "./lib/native";
+import { PaidSoon } from "./ui";
 import DATA from "./lib/programs.json";
 import type { Artwork, AuthUser, Profile } from "./lib/store";
 import * as M from "./lib/market";
@@ -36,6 +38,7 @@ export function MentorTab({ user, p, works, sub, setSub }: { user: AuthUser; p: 
   useEffect(() => { reload(); const t = setInterval(reload, 60000); return () => clearInterval(t); }, [reload]);
   const act = async (fn: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await fn(); await reload(); return true; } catch (x) { setErr((x as Error).message); return false; } finally { setBusy(false); } };
   const go = (s: MentorSub) => { setSub(s); setOpen(null); window.scrollTo(0, 0); };
+  useNativeBack(!!open, () => setOpen(null));
   if (!mk) return <><h1 className="page">미대 선배 멘토</h1>{err ? <div className="err" role="alert">{err}</div> : <div className="loading">불러오는 중…</div>}</>;
   const me = mk.mentors.find((m) => m.id === user.id);
   const subs: [MentorSub, string][] = [["find", "선배 찾기"], ["my", "내 요청"], ["mentor", "선배로 활동"], ...(mk.admin ? [["admin", "운영자"] as [MentorSub, string]] : [])];
@@ -47,8 +50,9 @@ export function MentorTab({ user, p, works, sub, setSub }: { user: AuthUser; p: 
   return <>
     <h1 className="page">미대 선배 멘토</h1>
     <div className="seg" role="group" aria-label="멘토 메뉴">{subs.map(([k, t]) => <button key={k} aria-pressed={sub === k} onClick={() => go(k)}>{t}</button>)}</div>
-    {!mk.server && <Note><b>베타 · 테스트 결제</b> 실제 돈은 오가지 않아요. 요청·인증·정산 기록은 이 기기에 저장돼요(서버 연결 전). 한 기기에서 다른 계정으로 로그인하면 선배·운영자 역할도 시험할 수 있어요. '가상' 표시 선배는 기능 시험용 가상 인물이에요.</Note>}
-    {mk.server && <Note><b>베타 · 테스트 결제</b> 실제 돈은 오가지 않아요. 정식 결제(PG 에스크로)는 사업자 계약 후 연결돼요. '가상' 표시 선배는 시험용 가상 인물이에요.</Note>}
+    {paymentMode === "off" && <Note><b>정식 오픈 준비 중</b> 선배 찾기·요청 작성까지 미리 둘러볼 수 있어요. 결제와 조언 연결은 정식 오픈 때 열려요. '가상' 표시 선배는 시험용 가상 인물이에요.</Note>}
+    {paymentMode !== "off" && !mk.server && <Note><b>베타 · 테스트 결제</b> 실제 돈은 오가지 않아요. 요청·인증·정산 기록은 이 기기에 저장돼요(서버 연결 전). 한 기기에서 다른 계정으로 로그인하면 선배·운영자 역할도 시험할 수 있어요. '가상' 표시 선배는 기능 시험용 가상 인물이에요.</Note>}
+    {paymentMode !== "off" && mk.server && <Note><b>베타 · 테스트 결제</b> 실제 돈은 오가지 않아요. 정식 결제(PG 에스크로)는 사업자 계약 후 연결돼요. '가상' 표시 선배는 시험용 가상 인물이에요.</Note>}
     {err && <div className="err" role="alert">{err}</div>}
     {view}
   </>;
@@ -176,7 +180,8 @@ function Compose({ c, q, mode, mentor, pool, back }: { c: Ctx; q: Query; mode: "
       <ul className="list small"><li>선배 수락 전: 언제든 <b>전액 환불</b></li><li>기한 안에 수락한 선배가 없으면: <b>자동 전액 환불</b></li><li>조언 시작 후: 환불 요청 → 운영자 <b>분쟁 심사</b>(전액·부분·불가)</li><li>답변 후 {c.mk.settings.autoConfirmDays}일 동안 확인이 없으면 자동 구매 확정</li></ul>
       <label className="check"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} /><span>(필수) 조언·첨삭만 받고 <b>대리 작업·대필을 요청하지 않으며</b>, 연락처 교환·직거래를 하지 않을게요. 환불 기준을 확인했어요.</span></label></div>
     {err && <div className="err" role="alert">{err}</div>}
-    <button className="btn block" disabled={c.busy} onClick={submit}>{c.busy ? <span className="spinner" /> : `${won(price)} 테스트 결제하고 요청 보내기`}</button>
+    {paymentMode === "off" ? <PaidSoon user={c.user} what="선배 1:1 조언" />
+      : <button className="btn block" disabled={c.busy} onClick={submit}>{c.busy ? <span className="spinner" /> : `${won(price)} 테스트 결제하고 요청 보내기`}</button>}
   </>;
   return <>
     <button className="back" onClick={back}>← 뒤로</button>
@@ -299,7 +304,7 @@ function ReqView({ c, r, back, as }: { c: Ctx; r: AdviceReq; back: () => void; a
 function FileChip({ f, viewer }: { f: Att | MentorDoc; viewer: string }) {
   const [u, setU] = useState<string | null>(null);
   const bucket = "by" in f ? "advice-files" : "mentor-docs";
-  async function open() { const url = await M.fileUrl(bucket, f); if (f.type === "application/pdf") { const w = window.open(); if (w) w.location.href = url; } else setU(url); }
+  async function open() { const url = await M.fileUrl(bucket, f); if (f.type === "application/pdf") { if (IS_NATIVE && /^https?:/.test(url)) openExternal(url); else { const w = window.open(); if (w) w.location.href = url; } } else setU(url); }
   // 이미지 위에 열람자 이메일 워터마크 — 캡처·도용 억제 (의뢰서 11: 작품 저작권·도용 방지)
   const wm = `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='240' height='140'><text x='10' y='80' transform='rotate(-24 120 70)' fill='rgba(255,255,255,0.5)' stroke='rgba(0,0,0,0.25)' stroke-width='0.4' font-size='13' font-family='sans-serif'>미대갈래 · ${viewer.replace(/[<>&'"]/g, "")} · 무단 복제 금지</text></svg>`)}")`;
   return <>
