@@ -29,11 +29,11 @@ export async function loadMarket(u: AuthUser): Promise<Market> {
     else if (err) throw new Error("멘토 매칭 정보를 불러오지 못했어요: " + err.message);
     else {
       const priv = new Map((mp.data || []).map((x) => [x.id as string, x.data as Pick<Mentor, "docs" | "bank" | "docLog">]));
-      const mentors = (m.data || []).map((x) => ({ ...(x.data as Mentor), status: x.status, docs: [], ...(priv.get((x.data as Mentor).id) || {}) }) as Mentor);
+      const mentors = (m.data || []).map((x) => ({ ...(x.data as Mentor), status: x.status, docs: [], ...priv.get((x.data as Mentor).id) }) as Mentor);
       return {
         mentors: [...mentors, ...SAMPLE_MENTORS], reqs: (r.data || []).map((x) => ({ ...(x.data as AdviceReq), status: x.status })), payouts: (p.data || []).map((x) => ({ ...(x.data as Payout), status: x.status })),
         reports: (rp.data || []).map((x) => ({ ...(x.data as Report), status: x.status })), reviews: [...(rv.data || []).map((x) => x.data as Review), ...SAMPLE_REVIEWS],
-        settings: { ...DEFAULT_SETTINGS, ...((st.data?.data as Settings) || {}) }, server: true, admin: !!ad.data || ADMIN_EMAILS.includes(u.email.toLowerCase()),
+        settings: { ...DEFAULT_SETTINGS, ...(st.data?.data as Settings | undefined) }, server: true, admin: !!ad.data || ADMIN_EMAILS.includes(u.email.toLowerCase()),
       };
     }
   }
@@ -81,7 +81,7 @@ const MAX = 10 * 1024 * 1024;
 export const OK_TYPES = /^(image\/(jpeg|png|webp)|application\/pdf)$/;
 async function toDataUrl(f: Blob): Promise<string> { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(f); }); }
 async function shrinkImage(file: File, max: number): Promise<Blob> {
-  if (!/^image\//.test(file.type)) return file;
+  if (!file.type.startsWith("image/")) return file;
   return new Promise((res) => {
     const url = URL.createObjectURL(file); const im = new Image();
     im.onload = () => { const k = Math.min(1, max / Math.max(im.width, im.height)); const c = document.createElement("canvas"); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext("2d")!.drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(url); c.toBlob((b) => res(b || file), "image/jpeg", 0.82); };

@@ -1,6 +1,6 @@
 // 미대갈래 서비스워커 — 화면 파일을 기기에 저장해 두어 빠르게 열리고, 새 버전은 다음 실행 때 반영됩니다.
-const CACHE = "midaegallae-v0.9.1";
-self.addEventListener("install", (e) => { self.skipWaiting(); });
+const CACHE = "midaegallae-v0.14.0";
+self.addEventListener("install", () => { self.skipWaiting(); });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });

@@ -228,6 +228,8 @@ def main():
                 t["src"] = GRIN_D.format(n[4])
                 if t["g50"] and t["g70"] and t["g70"] < t["g50"]:
                     flags.append((key, name, "70%컷이 50%컷보다 높음(자료 확인 필요)", t["g50"], t["g70"]))
+                    t["chk"] = "출처 표기상 70%컷이 50%컷보다 좋음 → 원문 확인 전까지 더 높은 기준으로 판정"
+            if cat == "논술" and not t["w"]: t["chk"] = "반영비율 미수집 → 대학 모집요강에서 논술·교과 비율 확인 필요"
             if t["w"] and t["w"]["면접"] > 0: t["itv"] = True
             if cat == "교과" and re.search(r"면접", name): t["itv"] = True
             if cat == "실기":
@@ -256,13 +258,16 @@ def main():
                     tid += 1
                     rep = same_unit(dept, t["rep"]) if t["rep"] else False
                     g70, g50 = t["g70"], t["g50"]
-                    if g50 and g70 and g70 < g50: g50, g70 = g70, g50
-                    ref = g70 if g70 else (round(g50 + 0.2, 2) if g50 else None)
+                    flip = bool(g50 and g70 and g70 < g50)
+                    if flip: g50, g70 = g70, g50
+                    # 50%·70%컷이 뒤바뀐 이상치는 원문 확인 전까지 더 엄격한 값(좋은 등급)으로 판정 — 합격 가능성 과대 표시 방지
+                    ref = g50 if flip else g70 if g70 else (round(g50 + 0.2, 2) if g50 else None)
                     w = t["w"]
                     if cat == "포트폴리오": wP, wG, wO = w["실기"], w["교과"] + w["서류"], w["면접"]
                     else: wP, wG, wO = w["실기"], w["교과"] + w["서류"], w["면접"]
                     has = ref is not None
                     verify = ("입결 공개(대학 발표)" if rep else "추정: 같은 전형 대표 학과 입결") if has else "입결 미공개"
+                    if flip: verify += " · 50/70%컷 역전 표기, 편집부 확인 필요(엄격 기준 적용)"
                     note = " · ".join(x for x in [t.get("limit", ""), t["etc"]] if x)
                     programs.append(dict(
                         id="T%03d" % tid, univ=univ, campus=campus, region=U["region"], kind="4년제", dept=dept, major=major_of(dept), round="수시", gun="",

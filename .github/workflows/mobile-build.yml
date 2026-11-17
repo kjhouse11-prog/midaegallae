@@ -19,6 +19,7 @@ env:
   VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
   VITE_ADMIN_EMAILS: ${{ vars.VITE_ADMIN_EMAILS }}
   VITE_SUPPORT_EMAIL: ${{ vars.VITE_SUPPORT_EMAIL }}
+  VITE_AI_ANALYSIS: ${{ vars.VITE_AI_ANALYSIS }}
 jobs:
   android:
     runs-on: ubuntu-latest

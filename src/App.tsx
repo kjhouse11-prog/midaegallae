@@ -275,7 +275,15 @@ const fieldName = (f: string) => f.replace("(게임)", " (게임)");
 function WorkView({ w, back, reload }: { w: Artwork; back: () => void; reload: () => Promise<void> }) {
   const [busy, setBusy] = useState(false), [err, setErr] = useState(""), [confirmDel, setConfirmDel] = useState(false); const a = w.analysis;
   const [side, setSide] = useState(0); const views = w.views?.length ? w.views : null; const shown = views ? views[side]?.url || w.url : w.url;
-  async function analyze() { setBusy(true); setErr(""); try { await S.saveAnalysis(w, views ? await demoSolidAnalysis(views.map((v) => v.url)) : await demoAnalysis(w.url)); await reload(); } catch (x) { setErr("분석하지 못했어요: " + (x as Error).message); } finally { setBusy(false); } }
+  async function analyze() {
+    setBusy(true); setErr("");
+    try {
+      // 1순위 Claude 진단(서버가 저장까지 처리) → 사용할 수 없으면 데모 진단
+      const ai = await S.claudeAnalysis(w);
+      if (!ai) await S.saveAnalysis(w, views ? await demoSolidAnalysis(views.map((v) => v.url)) : await demoAnalysis(w.url));
+      await reload();
+    } catch (x) { setErr(x instanceof S.AiError ? (x as Error).message : "분석하지 못했어요: " + (x as Error).message); } finally { setBusy(false); }
+  }
   async function del() { if (!confirmDel) { setConfirmDel(true); return; } try { await S.deleteArtwork(w); back(); await reload(); } catch (x) { setErr((x as Error).message); } }
   return <>
     <button className="back" onClick={back}>← 내 작품</button>
@@ -289,8 +297,8 @@ function WorkView({ w, back, reload }: { w: Artwork; back: () => void; reload: (
       <div className="card"><b>강사 코멘트</b><p className="small" style={{ margin: 0 }}>{a.comment}</p>{a.nextTask && <div className="notice"><b>다음 연습 과제</b> · {a.nextTask}</div>}</div>
       <p className="tiny">AI 참고 평가입니다. 실제 심사 결과와 다를 수 있어요.{views ? " 입체 작품은 사진 4면으로만 본 결과라 양감·공간감 평가에 한계가 있어요." : ""}</p>
       <button className="btn line block" onClick={analyze} disabled={busy}>{busy ? <span className="spinner" /> : "다시 분석하기"}</button>
-    </> : <div className="card"><b>아직 분석 전이에요</b><span className="small muted">{views ? "앞·뒤·좌·우 4면을 각각 보고 평균 내요. " : ""}구도·형태·명암·색채·완성도·발상 6개 항목으로 점수와 코멘트를 드려요. (현재 데모 분석 · Claude 분석은 다음 업데이트)</span>
-      <button className="btn block" onClick={analyze} disabled={busy}>{busy ? <><span className="spinner" /> 분석 중…</> : "AI 진단 받기"}</button></div>}
+    </> : <div className="card"><b>아직 분석 전이에요</b><span className="small muted">{views ? "앞·뒤·좌·우 4면을 각각 보고 평균 내요. " : ""}구도·형태·명암·색채·완성도·발상 6개 항목으로 점수와 코멘트를 드려요. {S.aiReady ? "Claude가 분야별 입시 기준으로 직접 보고 진단해요 (하루 10회)." : "(현재 데모 분석 · Claude 분석은 서버 연결 후 제공)"}</span>
+      <button className="btn block" onClick={analyze} disabled={busy}>{busy ? <><span className="spinner" /> {S.aiReady ? "Claude가 작품을 보는 중… (10~20초)" : "분석 중…"}</> : "AI 진단 받기"}</button></div>}
     {err && <div className="err" role="alert">{err}</div>}
     <button className="btn line block" onClick={del}>{confirmDel ? "한 번 더 누르면 삭제됩니다" : "이 작품 삭제"}</button>
   </>;

@@ -1,7 +1,7 @@
 // 데이터 저장 계층: Supabase가 설정되어 있으면 서버에, 아니면 이 기기(데모 모드)에 저장
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { authRedirect } from "./native";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../config";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, AI_ANALYSIS } from "../config";
 import { SOLID_VIEWS } from "./data";
 
 export interface Profile {
@@ -265,6 +265,23 @@ export async function saveAnalysis(w: Artwork, a: Analysis): Promise<void> {
     return;
   }
   const d = lread(); const x = d.works.find((v) => v.id === w.id); if (x) x.analysis = a; lwrite(d);
+}
+
+// ---------- AI 작품 진단 (Claude, 서버) ----------
+// 서버가 사진을 읽어 Claude로 진단하고 결과를 직접 저장함. 사용할 수 없으면 null → 화면에서 데모 진단으로 대신함
+export const aiReady = !!sb && AI_ANALYSIS === "claude";
+export class AiError extends Error { constructor(public code: string, message: string) { super(message); } }
+export async function claudeAnalysis(w: Artwork): Promise<Analysis | null> {
+  if (!sb || !aiReady) return null;
+  const { data, error } = await sb.functions.invoke("analyze-artwork", { body: { artworkId: w.id } });
+  if (error) {
+    // 서버 함수가 보낸 오류 내용(code·message) 읽기
+    let code = "ai", msg = "AI 진단 서버에 연결하지 못했어요.";
+    try { const ctx = (error as { context?: Response }).context; const b = ctx ? await ctx.json() : null; if (b?.error) { code = b.error.code; msg = b.error.message; } } catch { /* 본문 없음 */ }
+    if (code === "not_configured" || (error as { name?: string }).name === "FunctionsFetchError") return null; // 함수 미배포·키 미등록 → 데모
+    throw new AiError(code, msg);
+  }
+  return (data as { analysis: Analysis }).analysis;
 }
 
 function shrink(file: File, max: number): Promise<Blob> {
