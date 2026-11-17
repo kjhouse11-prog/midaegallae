@@ -21,7 +21,7 @@
 - `.github/workflows/deploy.yml` — main에 올리면 GitHub Pages로 자동 배포
 
 ## 처음 설정
-1. Supabase → SQL Editor → `supabase/setup.sql` 전체 붙여넣고 Run → 이어서 `supabase/migrate_v0.4.sql`, `migrate_v0.7.sql`, `migrate_v0.9.sql`, `migrate_v0.10.sql`, `migrate_v0.13.sql` 차례로 Run
+1. Supabase → SQL Editor → `supabase/setup.sql` 전체 붙여넣고 Run → 이어서 `supabase/migrate_v0.4.sql`, `migrate_v0.7.sql`, `migrate_v0.9.sql`, `migrate_v0.10.sql`, `migrate_v0.13.sql`, `migrate_v0.14.sql` 차례로 Run
    → 운영자 지정: `insert into admins(user_id) select id from auth.users where email = '운영자 이메일';`
 2. Supabase → Project Settings → API 에서 Project URL, anon(public) 키 확인
 3. GitHub 저장소 → Settings → Secrets and variables → Actions → **Variables** 탭에
@@ -51,7 +51,19 @@ npm run dev
 - **유료 서비스 결제 보류**: `VITE_PAYMENT_MODE`(test·off·live). 비우면 웹 베타는 test(테스트 결제), 앱은 off(결제 단계 대신 '정식 오픈 알림 신청'). 결제 방식 확정 후 live 연동
 - 스토어 필수: 앱 안 **회원 탈퇴**(마이 › 회원 탈퇴, Supabase는 `supabase/migrate_v0.13.sql` 실행 필요), 개인정보 처리방침 `public/privacy.html`·이용약관 `public/terms.html`(초안, [ ] 항목 기재 후 시행)
 
+## AI 작품 진단 (Claude, v0.14~)
+- 서버 함수 `supabase/functions/analyze-artwork/index.ts`: 앱은 작품 id만 보내고, 서버가 본인 작품 확인 → 비공개 저장소에서 사진 읽기 → Claude 진단(분야별 입시 기준·학년 반영, 입체 작품은 4면) → `analyses` 저장. API 키는 서버에만 있고 학생이 점수를 꾸밀 수 없음. 1인 하루 10회 제한(`AI_DAILY_LIMIT`)
+- 켜는 법: ① `supabase secrets set ANTHROPIC_API_KEY=…` ② `supabase functions deploy analyze-artwork` ③ GitHub Variables `VITE_AI_ANALYSIS=claude`
+- 꺼져 있거나 서버에 키가 없으면 자동으로 기존 데모 진단(이미지 통계)으로 대신함
+- 작품 사진이 미국(Anthropic)으로 전송되므로 개인정보 처리방침 5항(국외 이전)에 반영함
+
+## 편집부 데이터 검증 · 스토어 자료 (v0.14~)
+- `python3 scripts/export_checks.py` → `data/편집부_확인목록.csv` (1순위: 50/70%컷 역전·논술 반영비율 미수집, 2순위: 학원 추정·확인 필요, 3순위: 학원 정리본 입결, 4순위: 수상 특전). 확인 결과 칸을 채워 원자료 수정 후 `merge_extra.py`·`build_tracks.py` 재실행
+- `data/legal.json` 에 법인명·보호책임자 등 입력 → `python3 scripts/fill_legal.py` (점검만: `--check`)
+- `store/README.md` 스토어 등록 문구·데이터 보안·콘텐츠 등급·심사 안내 초안, `store/screenshots/` 1290×2796 스크린샷(`scripts/store_screenshots.py`로 재촬영)
+
 ## 버전
+- 0.14.0 (2026-11-17): **AI 작품 진단 실연결 준비** — Claude 진단 서버 함수(본인 확인·하루 횟수 제한·분야별 평가 관점 20종·입체 4면·흐린 사진 거르기), 앱은 서버 진단 우선·미설정 시 데모로 대신. **대학 데이터 품질** — 50%·70%컷이 뒤바뀐 5건(경상국립대·대구가톨릭대·대전대·신라대·울산대)은 '편집부 확인 중' 표시와 함께 더 엄격한 기준으로 판정(합격 가능성 과대 표시 방지, 판정 행 8개 기준 조정), 논술 5개 대학 반영비율 미수집 표시, 편집부 확인 목록 292건 자동 생성. **스토어 출시 준비** — 개인정보 처리방침에 Supabase 서버 지역(일본 도쿄 리전)·AI 진단 국외 이전(Anthropic, 미국) 기재, [ ] 항목 일괄 채우기 스크립트, 스토어 문구·데이터 보안·심사 안내 초안, 스크린샷 7종. **정리** — 린트 경고 4건 해소, 배포·앱 빌드에 `VITE_PAYMENT_MODE`·`VITE_SUPPORT_EMAIL`·`VITE_AI_ANALYSIS` 전달(웹 배포에 결제 스위치·고객센터 이메일이 빠져 있던 문제), 버전 0.14.0(안드로이드 versionCode 14). **서버**: 새 Supabase 프로젝트 '미대갈래'(도쿄 리전)에 setup~v0.10 설치, 보안 보완 `migrate_v0.14.sql`(내부 함수 비로그인 호출 차단·검색 경로 고정)
 - 0.13.0 (2026-10-30): **스토어용 모바일 앱(안드로이드·아이폰) 전환**. Capacitor 8 네이티브 프로젝트·아이콘·시작 화면·자동 빌드(APK/AAB, iOS 빌드 확인), 뒤로 가기·바깥 링크·상태 표시줄 처리, 앱 안 회원 탈퇴(`migrate_v0.13.sql`), 개인정보 처리방침·이용약관 초안 페이지, 유료 서비스 결제 보류 스위치(앱은 오픈 알림 신청). **학원찾기 세밀화**: 동·읍·면 필터, 정렬(내 분야·이름·상담 점수), 학원 상세(전화 상담·네이버/카카오 지도·같은 동 학원·정보 수정 요청), 목표 대학·학년·분야 맞춤 상담 질문, 상담 노트(교습비·별도 비용·주당 시간·반 인원·통학·강사·체험·합격 실적·4항목 평가) → 비교 점수 100점, 관심 학원 비교표(시간당 비용 등 항목별 최고값 표시), 학원 고르는 법(학년별 가이드·학원 유형·학원법 환불 기준). **대학진로 세밀화**: 대학찾기에 '학과·진로'(12개 전공별 소개·배우는 과목·직업·진출 분야·관련 국가자격·고교 준비·자주 보는 실기 종목, 수록 대학 수·평균 경쟁률·지역/전형/실기 종목 분포, 내 판정 요약)와 '실기 종목'(13개 종목별 대학, 프로필 분야 추천 종목 ★) 추가, 학과 상세에 '합격하려면 이것부터'(내신·실기·수능·최저·서류·면접 충족/보완)와 '이 학과 졸업 후'. DB 변경: 회원 탈퇴 함수(`migrate_v0.13.sql`)
 - 0.12.0 (2026-10-28): **전국 입시미술학원 실제 데이터 연동**. 학원 탭 '전국 학원 찾기'를 가상 예시 33곳에서 「월간 미대입시」 2026 전국 입시 미술학원 현황 **1,209곳**(17개 시·도)으로 교체. 시·도 → 구·군 단계 필터, 학원명·동·도로명 검색, 학원명 기준 전문 분야 표시(만화·애니·디자인·한국화·게임·조소·조형)와 내 계열 학원 우선 정렬('내 분야'), 주소·우편번호, 전화 바로 걸기, 네이버 지도 링크, 관심 학원(이 기기 저장, 새 목록 기준으로 초기화). 학원 목록은 학원 탭을 열 때만 불러옴(별도 파일). **개인정보 보호**: 원본은 공모전 접수 명단이라 휴대전화 17건(원장·담당자 개인번호 가능)은 공개 데이터에서 제외, 개인 이름으로 보이는 행 1건·시험/빈 행 2건·중복 11건 정리, 지역번호 누락·형식 오류 번호 보정. 원본 엑셀은 저장소에 올리지 않음(`python3 scripts/build_academies.py <엑셀>`로 갱신). 가상 맞춤도(예산·수업 시간·교습비 예시) 제거. DB 변경 없음
 - 0.11.1 (2026-10-23): **상단 빠른 메뉴·홈 이동**. 상단 바에 홈·작품·대학찾기·플래너·멘토·학원·마이 빠른 메뉴 고정, 로고 '미대갈래' 탭 시 홈으로 이동. PC·태블릿 폭에서 상·하단 메뉴가 스크롤 끝에서만 보이던 문제 수정(overflow:hidden → clip). DB 변경 없음

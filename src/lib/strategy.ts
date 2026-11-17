@@ -7,7 +7,7 @@ export type Elem = "교과" | "서류" | "실기" | "면접" | "수능";
 export interface Track {
   round: "수시" | "정시"; name: string; cat: string; kind?: string; itv: boolean; quota: number; units: [string, number][]; carry?: boolean;
   ratio: string; w: Record<Elem, number> | null; stage1: string; csat: string; comp: number | null; g50: number | null; g70: number | null;
-  rep: string; etc: string; src: string; ids: string[]; limit?: string;
+  rep: string; etc: string; src: string; ids: string[]; limit?: string; chk?: string; // chk: 편집부 원문 확인 필요 사항
 }
 export interface UnivTracks { univ: string; campus: string; region: string; g: string; susi: number; jungsi: number; carry: boolean; susiPct: number | null; focus: string; tracks: Track[] }
 export const TRACK_DATA = TR as unknown as { asof: string; basis: string; sources: Record<string, string>; univs: Record<string, UnivTracks>; programs: Program[] };

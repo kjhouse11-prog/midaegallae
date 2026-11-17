@@ -87,6 +87,7 @@ function TrackRow({ t, byId, st, open }: { t: Track; byId: (id: string) => Progr
     <WeightBar w={t.w} />
     <span className="tiny">{t.ratio || "반영비율 모집요강 확인"}{t.csat ? ` · 수능최저 ${t.csat}` : ""}{t.comp ? ` · 2026 경쟁률 ${t.comp}:1` : ""}{t.g70 || t.g50 ? ` · 등급컷 ${t.g50 ?? "–"}(50%)/${t.g70 ?? "–"}(70%)${t.rep ? `, ${t.rep} 기준` : ""}` : ""}</span>
     {t.limit && <span className="tiny warn-t">{t.limit}</span>}
+    {t.chk && <span className="tiny warn-t">편집부 확인 중 · {t.chk}</span>}
     {js.length > 0 && <div className="row between"><Counts cnt={cnt} /><button className="linkbtn" onClick={() => setMore(!more)}>{more ? "접기" : `학과별 판정 ${js.length}`}</button></div>}
     {more && <div className="plist">{js.map(({ p, j }) => <button key={p.id} className="pick" onClick={() => open(p.id)}><span className="small">{p.dept}{p.quota ? <span className="tiny"> · {p.quota}명</span> : null}</span><span className={`chip ${VERDICT_STYLE[j.verdict].c}`}>{VERDICT_LABEL[j.verdict]}</span></button>)}</div>}
   </div>;
